@@ -11,6 +11,7 @@ import ReportItemModal from './ReportItemModal.jsx';
 import ReportSubmittedConfirmation from './ReportSubmittedConfirmation.jsx';
 import { UserProfileModal } from './UserProfileModal.jsx';
 import LogoutConfirmation from './LogoutConfirmation.jsx';
+import Notifications from './Notifications.jsx';
 
 import HomePage from './Home.jsx';
 
@@ -57,6 +58,7 @@ export default function MainForm_User({
   const [submittedReport, setSubmittedReport] = useState(null);
 
   const profileRef = useRef(null);
+  const notificationRef = useRef(null);
 
   const navItems = [
     { id: 'home', label: 'Home' },
@@ -74,16 +76,35 @@ export default function MainForm_User({
       ) {
         setIsProfileModalOpen(false);
       }
+      if (
+        notificationRef.current &&
+        !notificationRef.current.contains(e.target)
+      ) {
+        setIsNotificationOpen(false);
+      }
     };
 
-    if (isProfileModalOpen) {
+    if (isProfileModalOpen || isNotificationOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isProfileModalOpen]);
+  }, [isProfileModalOpen, isNotificationOpen]);
+
+  // Notifications action handlers
+  const handleMarkAllNotificationsRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
+  };
+
+  const handleMarkNotificationAsRead = (id) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, unread: false } : n))
+    );
+  };
+
+  const unreadCount = notifications.filter((n) => n.unread).length;
 
   // Handle navbar navigation.
   const handleTabClick = (event, path) => {
@@ -519,3 +540,4 @@ export default function MainForm_User({
 }
 
 export { MainForm_User };
+
