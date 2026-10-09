@@ -9,6 +9,7 @@ import React, {
 import ReportItemModal from './ReportItemModal.jsx';
 import { UserProfileModal } from './UserProfileModal.jsx';
 import LogoutConfirmation from './LogoutConfirmation.jsx';
+import Notifications from './Notifications.jsx';
 
 import HomePage from './Home.jsx';
 
@@ -17,6 +18,70 @@ const BrowseItems = lazy(() => import('./BrowseItems.jsx'));
 const MyReports = lazy(() => import('./MyReports.jsx'));
 const MyClaims = lazy(() => import('./MyClaims.jsx'));
 const ProfileSettings = lazy(() => import('./ProfileSettings.jsx'));
+
+// Default campus notifications for ClaimIt
+const DEFAULT_NOTIFICATIONS = [
+  {
+    id: 'notif-1',
+    title: 'Claim Approved: Keys with lanyard',
+    message: 'Ana has verified your claim #CLM-7923. You can pick it up at Main Library Service Desk.',
+    time: '2 hours ago',
+    unread: true,
+    status: 'Approved',
+    type: 'claim_update',
+    claimId: '#CLM-7923',
+  },
+  {
+    id: 'notif-2',
+    title: 'Match Alert: Apple AirPods Pro',
+    message: 'A campus safety officer posted an item matching your reported AirPods Pro #CLM-8401.',
+    time: 'Yesterday',
+    unread: true,
+    status: 'In Review',
+    type: 'match_alert',
+    claimId: '#CLM-8401',
+  },
+  {
+    id: 'notif-3',
+    title: 'Campus Security Message',
+    message: 'Officer Diaz sent an update regarding verification of your M2 MacBook Air claim #CLM-5902.',
+    time: '2 days ago',
+    unread: true,
+    status: 'Pending',
+    type: 'message',
+    claimId: '#CLM-5902',
+  },
+  {
+    id: 'notif-4',
+    title: 'Status Updated: Patagonia Backpack',
+    message: 'Your found claim #CLM-7810 moved to "In Review" status by campus staff.',
+    time: '4 days ago',
+    unread: true,
+    status: 'In Review',
+    type: 'claim_update',
+    claimId: '#CLM-7810',
+  },
+  {
+    id: 'notif-5',
+    title: 'Claim Withdrawn: Clear umbrella',
+    message: 'Your claim request for #CLM-8492 has been marked as withdrawn.',
+    time: 'Sep 16',
+    unread: false,
+    status: 'Withdrawn',
+    type: 'claim_update',
+    claimId: '#CLM-8492',
+  },
+  {
+    id: 'notif-6',
+    title: 'Claim Declined: Casio calculator',
+    message: 'Verification was declined for #CLM-6180 because markings did not match records.',
+    time: 'Sep 12',
+    unread: false,
+    status: 'Declined',
+    type: 'claim_update',
+    claimId: '#CLM-6180',
+  },
+];
 
 /**
  * MainForm_User layout component for ClaimIt
@@ -41,7 +106,12 @@ export default function MainForm_User({
   const [isLogoutConfirmationOpen, setIsLogoutConfirmationOpen] =
     useState(false);
 
+  // Notifications state
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [notifications, setNotifications] = useState(DEFAULT_NOTIFICATIONS);
+
   const profileRef = useRef(null);
+  const notificationRef = useRef(null);
 
   const navItems = [
     { id: 'home', label: 'Home' },
@@ -59,16 +129,35 @@ export default function MainForm_User({
       ) {
         setIsProfileModalOpen(false);
       }
+      if (
+        notificationRef.current &&
+        !notificationRef.current.contains(e.target)
+      ) {
+        setIsNotificationOpen(false);
+      }
     };
 
-    if (isProfileModalOpen) {
+    if (isProfileModalOpen || isNotificationOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isProfileModalOpen]);
+  }, [isProfileModalOpen, isNotificationOpen]);
+
+  // Notifications action handlers
+  const handleMarkAllNotificationsRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
+  };
+
+  const handleMarkNotificationAsRead = (id) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, unread: false } : n))
+    );
+  };
+
+  const unreadCount = notifications.filter((n) => n.unread).length;
 
   // Handle navbar navigation.
   const handleTabClick = (e, path) => {
@@ -334,28 +423,54 @@ export default function MainForm_User({
               </span>
             </button>
 
-            {/* Notifications Button */}
-            <button
-              aria-label="Notifications"
-              className="relative flex items-center justify-center p-2 rounded-lg text-[#444655] hover:bg-[#e5eeff] hover:text-[#0b1c30] transition-colors cursor-pointer"
-              type="button"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                viewBox="0 0 24 24"
+            {/* Notifications Button & Dropdown */}
+            <div className="relative inline-block" ref={notificationRef}>
+              <button
+                aria-label="Notifications"
+                onClick={() => {
+                  setIsNotificationOpen((prev) => !prev);
+                  setIsProfileModalOpen(false);
+                }}
+                className={`relative flex items-center justify-center p-2 rounded-lg transition-colors cursor-pointer ${
+                  isNotificationOpen
+                    ? 'bg-[#e5eeff] text-[#5170ff]'
+                    : 'text-[#444655] hover:bg-[#e5eeff] hover:text-[#0b1c30]'
+                }`}
+                type="button"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"
-                />
-              </svg>
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"
+                  />
+                </svg>
 
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#ba1a1a] ring-2 ring-white" />
-            </button>
+                {unreadCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#ba1a1a] ring-2 ring-white" />
+                )}
+              </button>
+
+              {/* Connected Notifications Panel */}
+              {isNotificationOpen && (
+                <Notifications
+                  notifications={notifications}
+                  onClose={() => setIsNotificationOpen(false)}
+                  onMarkAllAsRead={handleMarkAllNotificationsRead}
+                  onMarkAsRead={handleMarkNotificationAsRead}
+                  onSelectClaim={(claimId) => {
+                    setIsNotificationOpen(false);
+                    setCurrentTab('my-claims');
+                  }}
+                />
+              )}
+            </div>
 
             {/* User Profile */}
             <div
@@ -364,11 +479,10 @@ export default function MainForm_User({
             >
               <button
                 aria-label="User Profile"
-                onClick={() =>
-                  setIsProfileModalOpen(
-                    (prev) => !prev
-                  )
-                }
+                onClick={() => {
+                  setIsProfileModalOpen((prev) => !prev);
+                  setIsNotificationOpen(false);
+                }}
                 className="flex items-center justify-center focus:outline-none rounded-full cursor-pointer ring-2 ring-transparent hover:ring-[#5170ff]/30 transition-all"
                 type="button"
               >
