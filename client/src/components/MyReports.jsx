@@ -1,5 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { ChevronDown } from 'lucide-react';
+import ReportDetailsModal from './ReportDetailsModal.jsx';
+import ClaimMatchVerificationModal from './ClaimMatchVerificationModal.jsx';
 
 export const DEFAULT_REPORTS = [
   {
@@ -10,6 +12,10 @@ export const DEFAULT_REPORTS = [
     dateFiled: 'Sep 16, 2026',
     status: 'Active',
     claims: '—',
+    location: 'Main Building Lobby',
+    description: 'Found a grey foldable umbrella with a wooden handle near the entrance.',
+    imageUrl: 'https://images.unsplash.com/photo-1556909212-d5b604d0c90d?auto=format&fit=crop&w=600&q=80',
+    entries: [],
   },
   {
     ticket: 'R-1072',
@@ -19,6 +25,35 @@ export const DEFAULT_REPORTS = [
     dateFiled: 'Sep 15, 2026',
     status: 'Pending Match',
     claims: '1 match',
+    location: 'Gymnasium Bleachers',
+    description: 'Lost my silver chain bracelet with 3 charms (star, heart, moon).',
+    imageUrl: 'https://images.unsplash.com/photo-1611591475870-070df16bfe64?auto=format&fit=crop&w=600&q=80',
+    entriesType: 'matches',
+    entries: [
+      {
+        id: 'M-301',
+        type: 'match',
+        isMatch: true,
+        name: 'Maria Santos',
+        submitterName: 'Maria Santos',
+        role: 'Reported Found',
+        date: 'Sep 15, 6:30 PM',
+        submittedDate: 'Sep 15, 6:30 PM',
+        status: 'Pending',
+        imageUrl: 'https://images.unsplash.com/photo-1611591475870-070df16bfe64?auto=format&fit=crop&w=600&q=80',
+        message: 'I found a silver bracelet matching this description near the bench.',
+        messagePreview: 'I found a silver bracelet matching this description near the bench.',
+        messages: [
+          {
+            id: 'm1',
+            senderName: 'Maria Santos',
+            timestamp: 'Sep 15, 6:35 PM',
+            text: 'Hello! I found a silver bracelet with 3 charms by bleacher #4 after volleyball practice.',
+            isCurrentUser: false,
+          },
+        ],
+      },
+    ],
   },
   {
     ticket: 'R-1042',
@@ -28,6 +63,61 @@ export const DEFAULT_REPORTS = [
     dateFiled: 'Sep 12, 2026',
     status: 'Pending Claim',
     claims: '2 claims',
+    location: 'University Library - 2nd Floor',
+    description: 'Black classic style sunglasses found on table #14 in the quiet study area.',
+    imageUrl: 'https://images.unsplash.com/photo-1511499767150-a48a237f0083?auto=format&fit=crop&w=600&q=80',
+    entriesType: 'claims',
+    entries: [
+      {
+        id: 'C-512',
+        type: 'claim',
+        isMatch: false,
+        name: 'Joshua Santiago',
+        submitterName: 'Joshua Santiago',
+        role: 'Claimant',
+        date: 'Sep 15, 2026',
+        submittedDate: 'Sep 15, 2026',
+        status: 'Pending',
+        imageUrl: null, // "No photo attached" state
+        message:
+          'Mine has a tiny chip on the bottom left corner of the frame and came with a brown case,...',
+        messagePreview:
+          'Mine has a tiny chip on the bottom left corner of the frame and came with a brown case,...',
+        messages: [
+          {
+            id: 'm-512-1',
+            senderName: 'Joshua Santiago',
+            timestamp: 'Sep 15, 9:12 AM',
+            text:
+              'Hey, I lost sunglasses around the library too — mine has a tiny chip on the bottom left corner of the frame. Was there a brown case nearby?.',
+            isCurrentUser: false,
+          },
+        ],
+      },
+      {
+        id: 'C-513',
+        type: 'claim',
+        isMatch: false,
+        name: 'Alex Rivera',
+        submitterName: 'Alex Rivera',
+        role: 'Claimant',
+        date: 'Sep 14, 2026',
+        submittedDate: 'Sep 14, 2026',
+        status: 'Pending',
+        imageUrl: 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?auto=format&fit=crop&w=400&q=80',
+        message: 'Black sunglasses with polarized lenses left on the desk.',
+        messagePreview: 'Black sunglasses with polarized lenses left on the desk.',
+        messages: [
+          {
+            id: 'm-513-1',
+            senderName: 'Alex Rivera',
+            timestamp: 'Sep 14, 3:20 PM',
+            text: 'Hi! I left my black sunglasses there during my afternoon study session.',
+            isCurrentUser: false,
+          },
+        ],
+      },
+    ],
   },
   {
     ticket: 'R-1039',
@@ -37,6 +127,9 @@ export const DEFAULT_REPORTS = [
     dateFiled: 'Sep 10, 2026',
     status: 'Active',
     claims: '—',
+    location: 'Engineering Building Room 302',
+    description: 'Black and silver scientific calculator with my initials (JD) carved inside the cover.',
+    entries: [],
   },
   {
     ticket: 'R-1021',
@@ -45,7 +138,39 @@ export const DEFAULT_REPORTS = [
     type: 'FOUND',
     dateFiled: 'Aug 29, 2026',
     status: 'Resolved',
-    claims: '—',
+    claims: '1 claim',
+    location: 'Student Activity Center',
+    description: 'Navy blue JanSport backpack with a grey bottom patch.',
+    entriesType: 'claims',
+    entries: [
+      {
+        id: 'C-480',
+        type: 'claim',
+        isMatch: false,
+        submitterName: 'Mark Gonzales',
+        submittedDate: 'Aug 30, 11:15 AM',
+        status: 'Approved',
+        imageUrl: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=400&q=80',
+        messagePreview: 'Contains notebooks and a blue spiral binder.',
+        isClosed: true,
+        messages: [
+          {
+            id: 'm-480-1',
+            senderName: 'Mark Gonzales',
+            timestamp: 'Aug 30, 11:20 AM',
+            text: 'Hello, I left my blue JanSport backpack in the student lounge yesterday.',
+            isCurrentUser: false,
+          },
+          {
+            id: 'm-480-2',
+            senderName: 'You',
+            timestamp: 'Aug 30, 1:45 PM',
+            text: 'Verified! All items inside match your description. Meet me at SAC security desk.',
+            isCurrentUser: true,
+          },
+        ],
+      },
+    ],
   },
   {
     ticket: 'R-1073',
@@ -55,6 +180,47 @@ export const DEFAULT_REPORTS = [
     dateFiled: 'Aug 22, 2026',
     status: 'Resolved',
     claims: '1 match',
+    location: 'Covered Court',
+    description: 'Blue steel insulated bottle with UCC organization sticker and small dent on bottom.',
+    imageUrl: 'https://images.unsplash.com/photo-1602143407151-7111542de6e8?auto=format&fit=crop&w=600&q=80',
+    entriesType: 'matches',
+    entries: [
+      {
+        id: 'C-495',
+        type: 'match',
+        isMatch: true,
+        name: 'Crystal Florano',
+        submitterName: 'Crystal Florano',
+        role: 'Reported Found',
+        date: 'Aug 22, 5:02 PM',
+        submittedDate: 'Aug 22, 5:02 PM',
+        status: 'Approved',
+        imageUrl: 'https://images.unsplash.com/photo-1602143407151-7111542de6e8?auto=format&fit=crop&w=400&q=80',
+        message:
+          'Found a blue steel water bottle at the Covered Court, dent on the bottom, UCC org sticker on...',
+        messagePreview:
+          'Found a blue steel water bottle at the Covered Court, dent on the bottom, UCC org sticker on...',
+        isClosed: true,
+        messages: [
+          {
+            id: 'm-495-1',
+            senderName: 'Crystal Florano',
+            timestamp: 'Aug 22, 5:10 PM',
+            text:
+              'Hi, I think I found your water bottle at the Covered Court — blue, dented bottom, UCC sticker.',
+            isCurrentUser: false,
+          },
+          {
+            id: 'm-495-2',
+            senderName: 'You',
+            timestamp: 'Aug 22, 6:10 PM',
+            text:
+              'That sounds exactly like mine! Thank you so much — approving this. Would you mind if we switch to Messenger so we can arrange the meetup details more easily?',
+            isCurrentUser: true,
+          },
+        ],
+      },
+    ],
   },
   {
     ticket: 'R-1005',
@@ -64,6 +230,9 @@ export const DEFAULT_REPORTS = [
     dateFiled: 'Aug 15, 2026',
     status: 'Closed',
     claims: '—',
+    location: 'Cafeteria cashier',
+    description: 'Lost ID card in transparent plastic case with blue lanyard.',
+    entries: [],
   },
   {
     ticket: 'R-1071',
@@ -73,22 +242,25 @@ export const DEFAULT_REPORTS = [
     dateFiled: 'Aug 5, 2026',
     status: 'Closed',
     claims: '—',
+    location: 'Science Lab 101',
+    description: 'Organic Chemistry 9th Edition hardcover book found on front counter.',
+    entries: [],
   },
 ];
 
 /**
- * @param {Object} [props]
- * @param {Array} [props.reports]
- * @param {((report: any) => void)} [props.onViewReport]
- * @param {string} [props.className]
+ * MyReports Component with built-in modal verification flow
  */
 export const MyReports = ({
   reports = DEFAULT_REPORTS,
-  onViewReport,
   className = '',
 }) => {
   const [selectedStatus, setSelectedStatus] = useState('All statuses');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  // Modal Flow States
+  const [selectedReport, setSelectedReport] = useState(null);
+  const [selectedVerification, setSelectedVerification] = useState(null);
 
   const statusOptions = [
     'All statuses',
@@ -105,6 +277,42 @@ export const MyReports = ({
     }
     return reports.filter((report) => report.status === selectedStatus);
   }, [reports, selectedStatus]);
+
+  const handleOpenReport = (report) => {
+    setSelectedReport(report);
+  };
+
+  const handleOpenVerification = (entry) => {
+    if (!selectedReport) return;
+
+    setSelectedVerification({
+      id: entry.id,
+      type: entry.type || (selectedReport.type === 'LOST' ? 'match' : 'claim'),
+      itemTitle: selectedReport.title,
+      reportTicket: selectedReport.ticket,
+      submitterName: entry.name || entry.submitterName,
+      submittedDate: entry.date || entry.submittedDate,
+      status: entry.status || 'Pending',
+      imageUrl: entry.imageUrl,
+      messagePreview: entry.message || entry.messagePreview,
+      messages: entry.messages || [],
+      isClosed: entry.isClosed,
+    });
+  };
+
+  const handleApprove = (ver) => {
+    alert(`Approved ${ver.type === 'match' ? 'Match' : 'Claim'} ${ver.id} for ${ver.submitterName}!`);
+    setSelectedVerification((prev) => (prev ? { ...prev, status: 'Approved', isClosed: true } : null));
+  };
+
+  const handleDecline = (ver) => {
+    alert(`Declined ${ver.type === 'match' ? 'Match' : 'Claim'} ${ver.id}.`);
+    setSelectedVerification((prev) => (prev ? { ...prev, status: 'Declined', isClosed: true } : null));
+  };
+
+  const handleSendMessage = (text) => {
+    console.log('Sending message to conversation:', text);
+  };
 
   const renderStatusBadge = (status) => {
     switch (status) {
@@ -187,7 +395,7 @@ export const MyReports = ({
           <div className="relative inline-block">
             <button
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="inline-flex items-center justify-between gap-2 px-3 py-1.5 bg-white border border-[#E8E4D8] rounded-lg text-sm text-[#23261F] hover:bg-gray-50 focus:outline-none font-headline transition-colors"
+              className="inline-flex items-center justify-between gap-2 px-3 py-1.5 bg-white border border-[#E8E4D8] rounded-lg text-sm text-[#23261F] hover:bg-gray-50 focus:outline-none font-headline transition-colors cursor-pointer"
               type="button"
               aria-haspopup="listbox"
               aria-expanded={isDropdownOpen}
@@ -209,7 +417,7 @@ export const MyReports = ({
                       setSelectedStatus(option);
                       setIsDropdownOpen(false);
                     }}
-                    className={`w-full text-left px-3 py-1.5 text-xs sm:text-sm hover:bg-gray-50 transition-colors ${
+                    className={`w-full text-left px-3 py-1.5 text-xs sm:text-sm hover:bg-gray-50 transition-colors cursor-pointer ${
                       selectedStatus === option
                         ? 'text-[#23261F] font-semibold bg-gray-50'
                         : 'text-[#6E6858]'
@@ -299,7 +507,7 @@ export const MyReports = ({
                     {/* Action Button */}
                     <td className="py-4 px-6 text-right whitespace-nowrap">
                       <button
-                        onClick={() => onViewReport?.(report)}
+                        onClick={() => handleOpenReport(report)}
                         className="inline-flex items-center justify-center px-3.5 py-1.5 border border-[#E8E4D8] rounded-lg text-xs font-medium text-[#23261F] hover:bg-[#F3F4F6] transition-colors cursor-pointer"
                         type="button"
                       >
@@ -319,6 +527,36 @@ export const MyReports = ({
           </table>
         </div>
       </div>
+
+      {/* ================= MODAL CONNECTIONS ================= */}
+
+      {/* 1. Report Details Modal */}
+      <ReportDetailsModal
+        isOpen={Boolean(selectedReport) && !selectedVerification}
+        report={selectedReport}
+        onClose={() => setSelectedReport(null)}
+        onViewClaimOrMatch={handleOpenVerification}
+      />
+
+      {/* 2. Claim / Match Verification Modal */}
+      <ClaimMatchVerificationModal
+        isOpen={Boolean(selectedVerification)}
+        verification={selectedVerification}
+        onClose={() => {
+          setSelectedVerification(null);
+          setSelectedReport(null);
+        }}
+        onBack={() => {
+          // Returning back to ReportDetailsModal
+          setSelectedVerification(null);
+        }}
+        onApprove={handleApprove}
+        onDecline={handleDecline}
+        onSendMessage={handleSendMessage}
+        onInspectDetails={(ver) => {
+          alert(`Inspecting full submission details for ${ver.id} (${ver.submitterName})`);
+        }}
+      />
     </div>
   );
 };

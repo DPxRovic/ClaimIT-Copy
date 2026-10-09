@@ -3,13 +3,13 @@ import ClaimOrMatchCard from './ClaimOrMatchCard.jsx';
 
 /**
  * ReportDetailsModal Component
- * Reusable modal for viewing lost or found report details, matches, and claims.
- * Based on the Stitch AI layout with dynamic data and scrollable claims/matches list.
+ * Reusable modal matching the exact Stitch design.
+ * Auto-injects Material Symbols Outlined font to ensure icons never appear as text.
  *
  * @param {Object} props
  * @param {boolean} [props.isOpen=true] - Controls visibility of the modal
  * @param {Function} [props.onClose] - Callback when modal is closed
- * @param {Object} [props.report] - Dynamic report data
+ * @param {Object} props.report - Dynamic report data
  * @param {boolean} [props.canCloseReport=false] - Whether "Close this report" action is visible
  * @param {Function} [props.onCloseReport] - Callback when "Close this report" is clicked
  * @param {Function} [props.onViewClaimOrMatch] - Callback when "View →" is clicked on a claim/match
@@ -24,6 +24,19 @@ export const ReportDetailsModal = ({
   onViewClaimOrMatch,
   className = '',
 }) => {
+  // Ensure Material Symbols font is loaded in document head
+  useEffect(() => {
+    const linkId = 'material-symbols-outlined-font';
+    if (!document.getElementById(linkId)) {
+      const link = document.createElement('link');
+      link.id = linkId;
+      link.rel = 'stylesheet';
+      link.href =
+        'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap';
+      document.head.appendChild(link);
+    }
+  }, []);
+
   // Close on Escape key press
   useEffect(() => {
     if (!isOpen) return;
@@ -53,42 +66,42 @@ export const ReportDetailsModal = ({
     switch (status) {
       case 'Active':
         return (
-          <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#eff4ff] text-[#284bdc] flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#284bdc] animate-pulse" aria-hidden="true" />
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#EEF2FF] text-[#4F46E5]">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#4F46E5]" aria-hidden="true" />
             Active
           </span>
         );
       case 'Pending Match':
         return (
-          <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-[#FEF3C7] text-[#92400E] flex items-center gap-1.5">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#FEF3C7] text-[#92400E]">
             <span className="w-1.5 h-1.5 rounded-full bg-[#D97706]" aria-hidden="true" />
             Pending Match
           </span>
         );
       case 'Pending Claim':
         return (
-          <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-[#FFEDD5] text-[#9A3412] flex items-center gap-1.5">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#FFEDD5] text-[#9A3412]">
             <span className="w-1.5 h-1.5 rounded-full bg-[#EA580C]" aria-hidden="true" />
             Pending Claim
           </span>
         );
       case 'Resolved':
         return (
-          <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-[#EFF6FF] text-[#1D4ED8] flex items-center gap-1.5">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#EFF6FF] text-[#1D4ED8]">
             <span className="w-1.5 h-1.5 rounded-full bg-[#1D4ED8]" aria-hidden="true" />
             Resolved
           </span>
         );
       case 'Closed':
         return (
-          <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-[#F3F4F6] text-[#4B5563] flex items-center gap-1.5">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#F3F4F6] text-[#4B5563]">
             <span className="w-1.5 h-1.5 rounded-full bg-[#6B7280]" aria-hidden="true" />
             Closed
           </span>
         );
       default:
         return (
-          <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-700">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
             {status}
           </span>
         );
@@ -98,13 +111,13 @@ export const ReportDetailsModal = ({
   const renderTypeBadge = (type) => {
     if (type === 'FOUND') {
       return (
-        <span className="text-[11px] uppercase font-semibold px-2.5 py-0.5 rounded tracking-wider text-white bg-[#0D6E6E]">
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-semibold bg-[#0D6E6E] text-white tracking-wider">
           FOUND
         </span>
       );
     }
     return (
-      <span className="text-[11px] uppercase font-semibold px-2.5 py-0.5 rounded tracking-wider text-white bg-[#881337]">
+      <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-semibold bg-[#881337] text-white tracking-wider">
         LOST
       </span>
     );
@@ -118,11 +131,11 @@ export const ReportDetailsModal = ({
       aria-modal="true"
       aria-labelledby="report-details-dialog-title"
     >
-      {/* Modal Card matching Stitch max-w-[500px] rounded-xl outline */}
+      {/* Modal Card matching exact Stitch max-w-[500px] outline #E8E4D8 */}
       <div
         onClick={(e) => e.stopPropagation()}
         className={`w-full max-w-[500px] bg-white rounded-xl shadow-xl overflow-hidden flex flex-col max-h-[92vh] transition-all duration-200 animate-in zoom-in-95 ${className}`}
-        style={{ border: '1px solid #E8E4D8' }}
+        style={{ outline: '1px solid #E8E4D8' }}
       >
         {/* Modal Header */}
         <div
@@ -132,7 +145,7 @@ export const ReportDetailsModal = ({
           <div className="flex items-center gap-2">
             <span
               id="report-details-dialog-title"
-              className="font-headline text-[18px] tracking-tight text-[#23261F] font-bold"
+              className="text-[18px] tracking-tight text-[#23261F] font-bold"
             >
               Report Details
             </span>
@@ -154,14 +167,14 @@ export const ReportDetailsModal = ({
         </div>
 
         {/* Scrollable Modal Body */}
-        <div className="p-4 space-y-3 overflow-y-auto flex-1 font-headline">
+        <div className="p-4 space-y-3 overflow-y-auto flex-1 font-sans">
           {/* Badges and Title */}
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-2">
               {renderTypeBadge(report.type)}
               {renderStatusBadge(report.status)}
             </div>
-            <h2 className="font-headline text-[18px] text-[#23261F] font-bold leading-tight tracking-tight">
+            <h2 className="text-[18px] text-[#23261F] font-bold leading-tight tracking-tight">
               {report.title}
             </h2>
           </div>
@@ -169,7 +182,7 @@ export const ReportDetailsModal = ({
           {/* Item Image */}
           {report.imageUrl && (
             <div
-              className="w-full h-32 rounded-xl overflow-hidden relative bg-[#e5eeff] flex items-center justify-center"
+              className="w-full h-32 rounded-xl overflow-hidden relative bg-[#e5eeff]"
               style={{ border: '1px solid #E8E4D8' }}
             >
               <img
@@ -211,7 +224,7 @@ export const ReportDetailsModal = ({
           {report.location && (
             <div className="space-y-1">
               <label className="text-[11px] uppercase tracking-wider text-[#6E6858] font-semibold flex items-center gap-1">
-                {locationLabel}
+                <span>{locationLabel}</span>
               </label>
               <div
                 className="flex items-start gap-2 p-2 rounded-lg bg-white text-[#23261F]"
@@ -243,17 +256,17 @@ export const ReportDetailsModal = ({
           )}
 
           {/* Matches / Claims Section */}
-          <div className="space-y-1.5 pt-0.5">
+          <div className="space-y-1">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <h3 className="font-headline text-[16px] font-bold text-[#23261F]">
+                <h3 className="text-[16px] font-bold text-[#23261F]">
                   {sectionTitle}
                 </h3>
                 <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#e5eeff] text-[#6E6858]">
                   {entriesCount}
                 </span>
               </div>
-              <span className="text-[11px] text-[#6E6858] uppercase tracking-wider font-semibold">
+              <span className="text-[11px] text-[#6E6858] uppercase tracking-wider">
                 Verification Ready
               </span>
             </div>
@@ -272,7 +285,7 @@ export const ReportDetailsModal = ({
             ) : (
               /* Empty state from Stitch AI */
               <div
-                className="rounded-lg px-3 py-2 flex items-center gap-2 bg-white"
+                className="rounded-lg px-3 py-1.5 flex items-center gap-2 bg-white"
                 style={{ border: '1px dashed #E8E4D8' }}
               >
                 <span className="material-symbols-outlined text-[16px] text-[#6E6858] flex-shrink-0">
@@ -291,13 +304,14 @@ export const ReportDetailsModal = ({
         {/* Modal Footer */}
         <div
           className="px-5 py-3 bg-white flex items-center justify-between shrink-0"
-          style={{ borderTop: '1px solid #E8E4D8' }}
+          style={{ borderTop: '1px solid rgb(232, 228, 216)' }}
         >
           {canCloseReport ? (
             <button
               type="button"
               onClick={() => onCloseReport?.(report)}
-              className="text-sm font-medium hover:underline cursor-pointer transition-colors focus:outline-none flex items-center gap-1 text-[#DC2626]"
+              className="text-sm font-medium hover:underline cursor-pointer transition-colors focus:outline-none flex items-center gap-1"
+              style={{ color: 'rgb(220, 38, 38)' }}
             >
               <span className="material-symbols-outlined text-[16px]">do_not_disturb_on</span>
               <span>Close this report</span>

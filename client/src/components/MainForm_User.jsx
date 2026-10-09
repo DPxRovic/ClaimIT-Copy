@@ -1,3 +1,4 @@
+
 import React, {
   useState,
   useRef,
@@ -7,6 +8,7 @@ import React, {
 } from 'react';
 
 import ReportItemModal from './ReportItemModal.jsx';
+import ReportSubmittedConfirmation from './ReportSubmittedConfirmation.jsx';
 import { UserProfileModal } from './UserProfileModal.jsx';
 import LogoutConfirmation from './LogoutConfirmation.jsx';
 
@@ -19,10 +21,15 @@ const MyClaims = lazy(() => import('./MyClaims.jsx'));
 const ProfileSettings = lazy(() => import('./ProfileSettings.jsx'));
 
 /**
- * MainForm_User layout component for ClaimIt
+ * MainForm_User layout component for ClaimIt.
  *
- * Main layout shell consisting of Navbar, main content container, and Footer.
- * Handles navigation between user pages and modal interactions.
+ * Handles:
+ * - Navbar and page navigation
+ * - Report Item modal
+ * - Report Submitted confirmation
+ * - Profile dropdown
+ * - Profile Settings navigation
+ * - Logout confirmation
  */
 
 export default function MainForm_User({
@@ -32,14 +39,22 @@ export default function MainForm_User({
   onLogout,
   user,
 }) {
-  // Home is the default page.
+  // Default page.
   const [currentTab, setCurrentTab] = useState('home');
 
+  // Navbar and profile states.
   const [imageError, setImageError] = useState(false);
-  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isLogoutConfirmationOpen, setIsLogoutConfirmationOpen] =
     useState(false);
+
+  // Report modal states.
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isReportConfirmationOpen, setIsReportConfirmationOpen] =
+    useState(false);
+
+  // Stores the details of the most recently submitted report.
+  const [submittedReport, setSubmittedReport] = useState(null);
 
   const profileRef = useRef(null);
 
@@ -52,10 +67,10 @@ export default function MainForm_User({
 
   // Close profile dropdown when clicking outside.
   useEffect(() => {
-    const handleClickOutside = (e) => {
+    const handleClickOutside = (event) => {
       if (
         profileRef.current &&
-        !profileRef.current.contains(e.target)
+        !profileRef.current.contains(event.target)
       ) {
         setIsProfileModalOpen(false);
       }
@@ -71,8 +86,8 @@ export default function MainForm_User({
   }, [isProfileModalOpen]);
 
   // Handle navbar navigation.
-  const handleTabClick = (e, path) => {
-    e.preventDefault();
+  const handleTabClick = (event, path) => {
+    event.preventDefault();
 
     setCurrentTab(path);
 
@@ -82,9 +97,9 @@ export default function MainForm_User({
   };
 
   // Open Report Item modal.
-  const handleReportItemClick = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleReportItemClick = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
 
     setIsReportModalOpen(true);
 
@@ -93,13 +108,44 @@ export default function MainForm_User({
     }
   };
 
+  // Close Report Item modal.
   const handleCloseModal = () => {
     setIsReportModalOpen(false);
   };
 
-  const handleModalSubmit = (payload) => {
-    console.log('Report submitted successfully:', payload);
+  // Submit report and show the confirmation modal.
+  const handleModalSubmit = (reportData) => {
+    // Generate a demonstration report ID.
+    // Replace this with the ID returned by your backend when connected.
+    const reportId = `R-${String(Date.now()).slice(-6)}`;
+
+    const newReport = {
+      ...reportData,
+      reportId,
+    };
+
+    setSubmittedReport(newReport);
+
+    // Close the form first, then show the confirmation.
     setIsReportModalOpen(false);
+    setIsReportConfirmationOpen(true);
+
+    console.log('Report submitted:', newReport);
+  };
+
+  // Close Report Submitted confirmation.
+  const handleCloseReportConfirmation = () => {
+    setIsReportConfirmationOpen(false);
+  };
+
+  // Navigate to My Reports from the confirmation modal.
+  const handleViewReports = () => {
+    setIsReportConfirmationOpen(false);
+    setCurrentTab('my-reports');
+
+    if (onNavigate) {
+      onNavigate('my-reports');
+    }
   };
 
   // Open Profile & Settings page.
@@ -143,7 +189,7 @@ export default function MainForm_User({
 
   // Loading fallback for lazy-loaded pages.
   const PageLoading = ({ label }) => (
-    <div className="w-full flex items-center justify-center py-20">
+    <div className="flex w-full items-center justify-center py-20">
       <p className="text-sm text-slate-500">
         Loading {label}...
       </p>
@@ -202,15 +248,15 @@ export default function MainForm_User({
   };
 
   return (
-    <div className="bg-[#f8f9ff] text-[#0b1c30] antialiased flex flex-col min-h-screen font-sans relative">
+    <div className="relative flex min-h-screen flex-col bg-[#f8f9ff] font-sans text-[#0b1c30] antialiased">
 
       {/* =========================
           HEADER / NAVBAR
       ========================== */}
-      <header className="w-full backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] bg-white border-b border-[#dce9ff] shrink-0 z-10">
+      <header className="relative z-50 w-full shrink-0 border-b border-[#dce9ff] bg-white shadow-[0_1px_8px_rgba(0,0,0,0.04)] backdrop-blur-xl">
 
         <div
-          className="h-16 max-w-7xl mx-auto flex items-center justify-between"
+          className="mx-auto flex h-16 max-w-7xl items-center justify-between"
           style={{
             paddingLeft: '22px',
             paddingRight: '22px',
@@ -222,24 +268,24 @@ export default function MainForm_User({
 
             {/* Logo */}
             <a
-              className="flex items-center focus:outline-none shrink-0"
+              className="flex shrink-0 items-center focus:outline-none"
               data-path="home"
               href="#home"
-              onClick={(e) => handleTabClick(e, 'home')}
+              onClick={(event) => handleTabClick(event, 'home')}
             >
               {!imageError ? (
                 <img
                   alt="ClaimIt Logo"
-                  className="h-8 w-auto object-contain select-none"
+                  className="h-8 w-auto select-none object-contain"
                   src="https://lh3.googleusercontent.com/aida-public/AB6AXuCNd2kKAy611ZAiDZzEnrENDlpP2SNj5UKDlhXChAJBo8X9ZmQUkGURH1GTMgj5294lZZOORyDc9ff9Bp7adnyJDAKUOTBtM8z3PM34Ggk_wJZeVsLlOQnoGSCt5HaT8MBN3KBMaaPnm-erb8lE84t6g8i03uARXSyrAwTKflKbzM2uEoW_Yb29LqoV2fDSlcpM-F2AbPqn5Nau2bv0XJx95TY1D0NWceGcTK07E3mDLgiHWM7baKGrv44T2Sjm0F896js"
                   onError={() => setImageError(true)}
                 />
               ) : (
-                <div className="flex items-center text-[26px] font-extrabold tracking-tight select-none">
+                <div className="flex select-none items-center text-[26px] font-extrabold tracking-tight">
 
-                  <span className="relative flex items-center justify-center mr-0.5">
+                  <span className="relative mr-0.5 flex items-center justify-center">
                     <svg
-                      className="w-6 h-6 text-[#0b1c30]"
+                      className="h-6 w-6 text-[#0b1c30]"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -247,12 +293,7 @@ export default function MainForm_User({
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     >
-                      <circle
-                        cx="11"
-                        cy="11"
-                        r="7"
-                      />
-
+                      <circle cx="11" cy="11" r="7" />
                       <line
                         x1="21"
                         y1="21"
@@ -263,21 +304,19 @@ export default function MainForm_User({
                     </svg>
                   </span>
 
-                  <span className="text-[#0b1c30] -ml-3 pl-3 font-heading">
+                  <span className="-ml-3 pl-3 font-heading text-[#0b1c30]">
                     laim
                   </span>
 
-                  <span className="text-[#5170ff] font-heading">
+                  <span className="font-heading text-[#5170ff]">
                     it
                   </span>
-
                 </div>
               )}
             </a>
 
             {/* Navigation */}
-            <nav className="hidden md:flex items-center gap-4 h-full">
-
+            <nav className="hidden h-full items-center gap-4 md:flex">
               {navItems.map((item) => {
                 const isActive = currentTab === item.id;
 
@@ -286,37 +325,34 @@ export default function MainForm_User({
                     key={item.id}
                     href={`#${item.id}`}
                     data-path={item.id}
-                    aria-current={
-                      isActive ? 'page' : undefined
+                    aria-current={isActive ? 'page' : undefined}
+                    onClick={(event) =>
+                      handleTabClick(event, item.id)
                     }
-                    onClick={(e) =>
-                      handleTabClick(e, item.id)
-                    }
-                    className={`inline-flex items-center px-1 py-1 text-sm transition-colors ${
+                    className={`inline-flex items-center border-b-2 px-1 py-1 text-sm transition-colors ${
                       isActive
-                        ? 'text-[#5170ff] font-semibold border-b-2 border-[#5170ff]'
-                        : 'text-[#444655] hover:text-[#0b1c30] border-b-2 border-transparent font-medium'
+                        ? 'border-[#5170ff] font-semibold text-[#5170ff]'
+                        : 'border-transparent font-medium text-[#444655] hover:text-[#0b1c30]'
                     }`}
                   >
                     {item.label}
                   </a>
                 );
               })}
-
             </nav>
           </div>
 
           {/* Right Action Icons & Buttons */}
-          <div className="flex items-center gap-4 shrink-0">
+          <div className="flex shrink-0 items-center gap-4">
 
             {/* Report Item Button */}
             <button
               type="button"
-              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-[#5170ff] hover:bg-[#4362ea] text-white text-sm font-semibold rounded-lg shadow-sm transition-colors cursor-pointer border-0"
+              className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border-0 bg-[#5170ff] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#4362ea]"
               onClick={handleReportItemClick}
             >
               <svg
-                className="w-[18px] h-[18px]"
+                className="h-[18px] w-[18px]"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2.2"
@@ -329,19 +365,17 @@ export default function MainForm_User({
                 />
               </svg>
 
-              <span>
-                Report Item
-              </span>
+              <span>Report Item</span>
             </button>
 
             {/* Notifications Button */}
             <button
               aria-label="Notifications"
-              className="relative flex items-center justify-center p-2 rounded-lg text-[#444655] hover:bg-[#e5eeff] hover:text-[#0b1c30] transition-colors cursor-pointer"
+              className="relative flex cursor-pointer items-center justify-center rounded-lg p-2 text-[#444655] transition-colors hover:bg-[#e5eeff] hover:text-[#0b1c30]"
               type="button"
             >
               <svg
-                className="w-5 h-5"
+                className="h-5 w-5"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="1.8"
@@ -354,7 +388,7 @@ export default function MainForm_User({
                 />
               </svg>
 
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#ba1a1a] ring-2 ring-white" />
+              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#ba1a1a] ring-2 ring-white" />
             </button>
 
             {/* User Profile */}
@@ -365,26 +399,22 @@ export default function MainForm_User({
               <button
                 aria-label="User Profile"
                 onClick={() =>
-                  setIsProfileModalOpen(
-                    (prev) => !prev
-                  )
+                  setIsProfileModalOpen((previous) => !previous)
                 }
-                className="flex items-center justify-center focus:outline-none rounded-full cursor-pointer ring-2 ring-transparent hover:ring-[#5170ff]/30 transition-all"
+                className="flex cursor-pointer items-center justify-center rounded-full ring-2 ring-transparent transition-all hover:ring-[#5170ff]/30 focus:outline-none"
                 type="button"
               >
-                <div className="w-8 h-8 rounded-full bg-[#5170ff] flex items-center justify-center overflow-hidden">
+                <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-[#5170ff]">
 
                   {user?.avatarUrl ? (
                     <img
                       src={user.avatarUrl}
-                      alt={
-                        user.name || 'User profile'
-                      }
-                      className="w-full h-full object-cover"
+                      alt={user.name || 'User profile'}
+                      className="h-full w-full object-cover"
                     />
                   ) : (
                     <svg
-                      className="w-[18px] h-[18px] text-white"
+                      className="h-[18px] w-[18px] text-white"
                       fill="none"
                       stroke="currentColor"
                       strokeWidth="2"
@@ -397,18 +427,15 @@ export default function MainForm_User({
                       />
                     </svg>
                   )}
-
                 </div>
               </button>
 
               {/* User Profile Popover */}
               {isProfileModalOpen && (
-                <div className="absolute right-0 top-full mt-2.5 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+                <div className="absolute right-0 top-full z-50 mt-2.5 animate-in fade-in slide-in-from-top-1 duration-150">
                   <UserProfileModal
                     user={user}
-                    onProfileSettings={
-                      handleProfileSettings
-                    }
+                    onProfileSettings={handleProfileSettings}
                     onLogout={handleLogout}
                   />
                 </div>
@@ -421,13 +448,13 @@ export default function MainForm_User({
       {/* =========================
           MAIN CONTENT
       ========================== */}
-      <main className="w-full bg-[#f8f9ff] min-h-[calc(100vh-4rem)] flex-1 flex flex-col items-center">
+      <main className="flex min-h-[calc(100vh-4rem)] w-full flex-1 flex-col items-center bg-[#f8f9ff]">
 
-        <div className="flex flex-col w-full flex-1">
+        <div className="flex w-full flex-1 flex-col">
 
           {/* Shared page container */}
           <div
-            className="max-w-7xl mx-auto w-full py-10 flex-1"
+            className="mx-auto flex w-full max-w-7xl flex-1 flex-col py-10"
             style={{
               paddingLeft: '22px',
               paddingRight: '22px',
@@ -435,27 +462,25 @@ export default function MainForm_User({
           >
             {renderContent()}
           </div>
-
         </div>
       </main>
 
       {/* =========================
           FOOTER
       ========================== */}
-      <footer className="w-full bg-white py-6 shadow-[0_-1px_8px_rgba(0,0,0,0.02)] shrink-0 mt-auto border-t border-[#c4c5d7]/20">
+      <footer className="mt-auto w-full shrink-0 border-t border-[#c4c5d7]/20 bg-white py-6 shadow-[0_-1px_8px_rgba(0,0,0,0.02)]">
 
         <div
-          className="max-w-7xl mx-auto flex justify-end"
+          className="mx-auto flex max-w-7xl justify-end"
           style={{
             paddingLeft: '22px',
             paddingRight: '22px',
           }}
         >
-          <p className="text-sm text-[#444655] text-right font-normal">
+          <p className="text-right text-sm font-normal text-[#444655]">
             © 2026 ClaimIt. All rights reserved.
           </p>
         </div>
-
       </footer>
 
       {/* =========================
@@ -466,6 +491,17 @@ export default function MainForm_User({
         onClose={handleCloseModal}
         onCancel={handleCloseModal}
         onSubmit={handleModalSubmit}
+      />
+
+      {/* =========================
+          REPORT SUBMITTED CONFIRMATION
+      ========================== */}
+      <ReportSubmittedConfirmation
+        isOpen={isReportConfirmationOpen}
+        onClose={handleCloseReportConfirmation}
+        onViewReports={handleViewReports}
+        reportId={submittedReport?.reportId ?? 'R-0000'}
+        reportType={submittedReport?.reportType ?? 'lost'}
       />
 
       {/* =========================

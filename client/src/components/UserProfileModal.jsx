@@ -15,7 +15,7 @@ export default function UserProfileModal({
     name: 'Sabrina Carpenter',
     email: 'sabrina@gmail.com',
     role: 'Admin',
-    avatarUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDAQaLeD5CjdQh-eGVzo8_SQiG8ZLCFHsKhgHNa_7ALULLuX8ypclPhia7xOE970smwt8G8PdSq_xkY-PBoricMxxzKPEhen8WPe-dqg2IgeRYFj3bgrVuFoST1mR6Cl-6odDrZ8C2Pglfa04HX5HLHIazQm_xxuq33Fy0QBDcgE1riAtatO1ssiOSsc_ETGbEA1e4bH4mJNVGWoHsnzbQEDCZt2qddr4cwZhw9l0VX6aHF_eFQWVl5dA',
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
   },
   onProfileSettings,
   onLogout,
@@ -36,8 +36,23 @@ export default function UserProfileModal({
     }
   };
 
+  // Determine role badge styling based on role (Admin, Student, Faculty)
+  const getRoleBadgeStyle = (role = '') => {
+    const normalized = role.toLowerCase();
+    if (normalized === 'admin') {
+      return 'bg-[#eff4ff] text-[#5170ff] border-[#d3e4fe]';
+    }
+    if (normalized === 'faculty') {
+      return 'bg-amber-50 text-amber-700 border-amber-200';
+    }
+    if (normalized === 'student') {
+      return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    }
+    return 'bg-[#eff4ff] text-[#5170ff] border-[#d3e4fe]';
+  };
+
   return (
-    <div className="w-full max-w-[288px] bg-white rounded-[16px] border border-[#E8E4D8] shadow-[0_10px_25px_-5px_rgba(0,0,0,0.08),0_8px_10px_-6px_rgba(0,0,0,0.04)] overflow-hidden transition-all duration-200 font-sans select-none text-left">
+    <div className="w-full max-w-[288px] bg-white rounded-[16px] border border-[#E8E4D8] shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1),0_8px_10px_-6px_rgba(0,0,0,0.05)] overflow-hidden transition-all duration-200 font-sans select-none text-left">
       {/* Top Header / Identity Area */}
       <div className="bg-[#FAF9F5] px-5 pt-6 pb-5 flex flex-col items-center text-center">
         {/* 1. Profile Picture */}
@@ -63,7 +78,11 @@ export default function UserProfileModal({
           <h2 className="font-heading font-semibold text-[1.0625rem] leading-tight text-[#23261F] tracking-tight truncate max-w-[180px]">
             {user?.name || 'Sabrina Carpenter'}
           </h2>
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.6875rem] font-semibold bg-[#eff4ff] text-[#5170ff] border border-[#d3e4fe] leading-none shrink-0 font-heading">
+          <span
+            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[0.6875rem] font-semibold border leading-none shrink-0 font-heading ${getRoleBadgeStyle(
+              user?.role
+            )}`}
+          >
             {user?.role || 'Admin'}
           </span>
         </div>
@@ -80,10 +99,10 @@ export default function UserProfileModal({
       {/* Navigation & Action List */}
       <div className="p-2 space-y-1 bg-white">
         {/* 4. Profile & Settings */}
-        <a
-          href="#profile-settings"
+        <button
+          type="button"
           onClick={handleProfileSettingsClick}
-          className="group flex items-center justify-between px-3.5 py-2.5 rounded-[10px] text-[#23261F] hover:bg-[#FAF9F5] hover:text-[#5170ff] transition-colors duration-150 cursor-pointer"
+          className="w-full group flex items-center justify-between px-3.5 py-2.5 rounded-[10px] text-[#23261F] hover:bg-[#FAF9F5] hover:text-[#5170ff] transition-colors duration-150 cursor-pointer text-left"
         >
           <div className="flex items-center gap-3">
             {/* Manage Accounts SVG Icon */}
@@ -114,7 +133,7 @@ export default function UserProfileModal({
           >
             <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
           </svg>
-        </a>
+        </button>
 
         {/* Divider Line */}
         <div className="w-full h-[1px] bg-[#E8E4D8] my-1" />

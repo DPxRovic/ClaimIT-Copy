@@ -1,19 +1,27 @@
-import React, { useState, useRef } from 'react';
 
-/**
- * ReportItemModal component for ClaimIt
- * 
- * Standalone modal card for reporting lost or found items on campus.
- * 
- * @param {Object} props
- * @param {boolean} [props.isOpen=true] Controls modal visibility
- * @param {() => void} [props.onClose] Callback when clicking close (X) or Cancel
- * @param {() => void} [props.onCancel] Secondary callback for Cancel button
- * @param {(reportData: any) => void} [props.onSubmit] Callback when submitting the report
- * @param {string} [props.initialType='lost'] Initial report type ('lost' | 'found')
- */
+import React, { useEffect, useRef, useState } from 'react';
+
+const getLocalDateString = () => {
+  const today = new Date();
+  const localDate = new Date(
+    today.getTime() - today.getTimezoneOffset() * 60000
+  );
+
+  return localDate.toISOString().slice(0, 10);
+};
+
+const CATEGORIES = [
+  { value: 'electronics', label: 'Electronics' },
+  { value: 'personal-items', label: 'Personal Items' },
+  { value: 'keys', label: 'Keys & Accessories' },
+  { value: 'books', label: 'Books & Study Material' },
+  { value: 'apparel', label: 'Apparel' },
+  { value: 'bags', label: 'Bags & Backpacks' },
+  { value: 'ids', label: 'IDs & Cards' },
+];
+
 export default function ReportItemModal({
-  isOpen = true,
+  isOpen = false,
   onClose,
   onCancel,
   onSubmit,
@@ -22,366 +30,530 @@ export default function ReportItemModal({
   const [reportType, setReportType] = useState(initialType);
   const [itemName, setItemName] = useState('');
   const [category, setCategory] = useState('');
-  const [date, setDate] = useState(() => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
-  });
+  const [date, setDate] = useState(getLocalDateString);
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
+  const [selectedFile, setSelectedFile] = useState(null);
   const [selectedFileName, setSelectedFileName] = useState('');
   const [imagePreview, setImagePreview] = useState(null);
+  const [error, setError] = useState('');
 
   const fileInputRef = useRef(null);
 
-  if (!isOpen) return null;
-
+  // Use one close callback to avoid triggering two parent handlers.
   const handleClose = () => {
-    if (onClose) onClose();
-    if (onCancel) onCancel();
+    (onCancel ?? onClose)?.();
   };
 
-  const handleFileChange = (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setSelectedFileName(file.name);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result);
-      };
-      reader.readAsDataURL(file);
+  // Reset the form when it is opened.
+  useEffect(() => {
+    if (!isOpen) return;
+
+    setReportType(initialType);
+    setItemName('');
+    setCategory('');
+    setDate(getLocalDateString());
+    setLocation('');
+    setDescription('');
+    setSelectedFile(null);
+    setSelectedFileName('');
+    setImagePreview(null);
+    setError('');
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }, [isOpen, initialType]);
+
+  // Allow the user to close the modal with Escape.
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        handleClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onCancel, onClose]);
+
+  if (!isOpen) return null;
+
+  const handleFileChange = (event) => {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    const allowedTypes = [
+      'image/png',
+      'image/jpeg',
+      'image/webp',
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+      setError('Please select a PNG, JPG, or WebP image.');
+      event.target.value = '';
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setError('The image must be 10MB or smaller.');
+      event.target.value = '';
+      return;
+    }
+
+    setError('');
+    setSelectedFile(file);
+    setSelectedFileName(file.name);
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      setImagePreview(reader.result);
+    };
+
+    reader.onerror = () => {
+      setError('Unable to preview this image. Please try another file.');
+    };
+
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveImage = () => {
+    setSelectedFile(null);
+    setSelectedFileName('');
+    setImagePreview(null);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const payload = {
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    setError('');
+
+    if (
+      !itemName.trim() ||
+      !category ||
+      !date ||
+      !location.trim() ||
+      !description.trim()
+    ) {
+      setError('Please complete all required fields.');
+      return;
+    }
+
+    const reportData = {
       reportType,
-      itemName,
+      itemName: itemName.trim(),
       category,
       date,
-      location,
-      description,
+      location: location.trim(),
+      description: description.trim(),
       fileName: selectedFileName,
+      imageFile: selectedFile,
       imagePreview,
       createdAt: new Date().toISOString(),
     };
 
-    if (onSubmit) {
-      onSubmit(payload);
+    if (typeof onSubmit !== 'function') {
+      setError('The report could not be submitted. Please try again.');
+      return;
     }
-    handleClose();
+
+    // IMPORTANT:
+    // The parent component handles closing this modal
+    // and opening ReportSubmittedConfirmation.
+    onSubmit(reportData);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
-      {/* Backdrop Click Dismiss */}
-      <div className="absolute inset-0" onClick={handleClose} />
-
-      <div
-        role="dialog"
-        aria-labelledby="modal-title"
-        aria-modal="true"
-        className="relative z-10 w-full max-w-[580px] bg-white rounded-2xl shadow-2xl border overflow-hidden flex flex-col max-h-[90vh] border-[#E8E4D8] font-sans text-slate-800"
-      >
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          handleClose();
+        }
+      }}
+      role="dialog"
+      aria-labelledby="report-item-modal-title"
+      aria-modal="true"
+    >
+      <div className="relative flex max-h-[90vh] w-full max-w-[580px] flex-col overflow-hidden rounded-2xl border border-[#E8E4D8] bg-white font-sans text-slate-800 shadow-2xl">
         {/* Modal Header */}
-        <div className="flex items-start justify-between gap-4 px-6 py-3.5 border-b bg-white rounded-t-2xl shrink-0 border-[#E8E4D8]">
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[#E8E4D8] bg-white px-6 py-3.5">
           <div className="flex flex-col gap-1">
-            <h2 className="font-heading text-lg font-bold text-[#0f172a]" id="modal-title">
+            <h2
+              id="report-item-modal-title"
+              className="font-heading text-lg font-bold text-[#0F172A]"
+            >
               Report an Item
             </h2>
+
             <p className="text-xs text-[#6E6858]">
               Provide details to help reunite this item with its rightful owner.
             </p>
           </div>
 
-          {/* Close Button */}
           <button
             type="button"
-            aria-label="Close modal"
             onClick={handleClose}
-            className="w-8 h-8 flex items-center justify-center shrink-0 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors focus:outline-none cursor-pointer"
+            aria-label="Close modal"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            <svg
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>
 
-        {/* Modal Form Body */}
-        <form onSubmit={handleSubmit} className="px-6 py-4 overflow-y-auto space-y-3 flex-1 text-left">
-          {/* Report Type Selector */}
-          <div className="space-y-2">
-            <label className="block text-xs font-bold uppercase tracking-wider text-[#23261F] font-heading">
-              Report Type *
-            </label>
-            <div className="flex gap-3">
-              {/* Option: Lost Something */}
-              <div
-                onClick={() => setReportType('lost')}
-                className={`flex-1 min-w-0 flex flex-col p-2.5 rounded-xl cursor-pointer transition-all ${
-                  reportType === 'lost'
-                    ? 'border-2 border-[#5170ff] bg-[#f0f4ff]'
-                    : 'border border-[#E8E4D8] bg-white hover:border-slate-300'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <div
-                    className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
-                      reportType === 'lost' ? 'bg-[#5170ff]/15 text-[#5170ff]' : 'bg-slate-100 text-slate-600'
+        {/* Form */}
+        <form
+          onSubmit={handleSubmit}
+          className="flex min-h-0 flex-1 flex-col"
+        >
+          <div className="flex-1 space-y-3 overflow-y-auto px-6 py-4 text-left">
+            {/* Report Type */}
+            <fieldset className="space-y-2">
+              <legend className="block font-heading text-xs font-bold uppercase tracking-wider text-[#23261F]">
+                Report Type *
+              </legend>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setReportType('lost')}
+                  aria-pressed={reportType === 'lost'}
+                  className={`flex min-w-0 flex-1 flex-col rounded-xl p-3 text-left transition-all ${
+                    reportType === 'lost'
+                      ? 'border-2 border-[#5170FF] bg-[#F0F4FF]'
+                      : 'border border-[#E8E4D8] bg-white hover:border-slate-300'
+                  }`}
+                >
+                  <span
+                    className={`mb-2 flex h-7 w-7 items-center justify-center rounded-lg ${
+                      reportType === 'lost'
+                        ? 'bg-[#5170FF]/15 text-[#5170FF]'
+                        : 'bg-slate-100 text-slate-600'
                     }`}
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <svg
+                      className="h-4 w-4"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      viewBox="0 0 24 24"
+                    >
                       <circle cx="11" cy="11" r="8" />
                       <line x1="21" y1="21" x2="16.65" y2="16.65" />
                     </svg>
-                  </div>
+                  </span>
 
-                  {reportType === 'lost' ? (
-                    <span className="w-3.5 h-3.5 rounded-full bg-[#5170ff] flex items-center justify-center text-white shrink-0">
-                      <svg className="w-2.5 h-2.5 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                    </span>
-                  ) : (
-                    <span className="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0" />
-                  )}
-                </div>
-                <span className={`font-semibold text-xs sm:text-sm ${reportType === 'lost' ? 'text-[#5170ff]' : 'text-slate-700'}`}>
-                  Lost Something
-                </span>
-                <span className="text-[11px] text-[#6E6858] mt-0.5">
-                  I'm looking for an item I lost
-                </span>
-              </div>
+                  <span className="text-sm font-semibold text-slate-800">
+                    Lost Something
+                  </span>
 
-              {/* Option: Found Something */}
-              <div
-                onClick={() => setReportType('found')}
-                className={`flex-1 min-w-0 flex flex-col p-2.5 rounded-xl cursor-pointer transition-all ${
-                  reportType === 'found'
-                    ? 'border-2 border-[#5170ff] bg-[#f0f4ff]'
-                    : 'border border-[#E8E4D8] bg-white hover:border-slate-300'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <div
-                    className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
-                      reportType === 'found' ? 'bg-[#5170ff]/15 text-[#5170ff]' : 'bg-slate-100 text-slate-600'
+                  <span className="mt-0.5 text-[11px] text-[#6E6858]">
+                    I'm looking for an item I lost
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setReportType('found')}
+                  aria-pressed={reportType === 'found'}
+                  className={`flex min-w-0 flex-1 flex-col rounded-xl p-3 text-left transition-all ${
+                    reportType === 'found'
+                      ? 'border-2 border-[#5170FF] bg-[#F0F4FF]'
+                      : 'border border-[#E8E4D8] bg-white hover:border-slate-300'
+                  }`}
+                >
+                  <span
+                    className={`mb-2 flex h-7 w-7 items-center justify-center rounded-lg ${
+                      reportType === 'found'
+                        ? 'bg-[#5170FF]/15 text-[#5170FF]'
+                        : 'bg-slate-100 text-slate-600'
                     }`}
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6 3V4a1.5 1.5 0 013 0v3.5m0 0V4a1.5 1.5 0 013 0v4.5" />
+                    <svg
+                      className="h-4 w-4"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6 3V4a1.5 1.5 0 013 0v3.5m0 0V4a1.5 1.5 0 013 0v4.5"
+                      />
                     </svg>
-                  </div>
+                  </span>
 
-                  {reportType === 'found' ? (
-                    <span className="w-3.5 h-3.5 rounded-full bg-[#5170ff] flex items-center justify-center text-white shrink-0">
-                      <svg className="w-2.5 h-2.5 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                    </span>
-                  ) : (
-                    <span className="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0" />
-                  )}
-                </div>
-                <span className={`font-semibold text-xs sm:text-sm ${reportType === 'found' ? 'text-[#5170ff]' : 'text-slate-700'}`}>
-                  Found Something
-                </span>
-                <span className="text-[11px] text-[#6E6858] mt-0.5">
-                  I found an item on campus
-                </span>
+                  <span className="text-sm font-semibold text-slate-800">
+                    Found Something
+                  </span>
+
+                  <span className="mt-0.5 text-[11px] text-[#6E6858]">
+                    I found an item on campus
+                  </span>
+                </button>
               </div>
-            </div>
-          </div>
+            </fieldset>
 
-          {/* Item Name */}
-          <div className="space-y-1.5">
-            <label htmlFor="report-item-name" className="block text-sm font-medium text-[#23261F]">
-              Item Name *
-            </label>
-            <input
-              id="report-item-name"
-              name="itemName"
-              type="text"
-              required
-              value={itemName}
-              onChange={(e) => setItemName(e.target.value)}
-              placeholder="e.g. Matte Black Hydro Flask 32oz"
-              className="w-full px-3 py-2 text-sm rounded-lg border border-[#E8E4D8] placeholder-[#6E6858]/70 focus:outline-none focus:border-[#5170ff] focus:ring-1 focus:ring-[#5170ff] transition-all bg-white text-slate-900 h-9"
-            />
-          </div>
-
-          {/* Category & Date Row */}
-          <div className="flex gap-4">
-            {/* Category */}
-            <div className="flex-1 min-w-0 space-y-1.5">
-              <label htmlFor="report-category" className="block text-sm font-medium text-[#23261F]">
-                Category *
+            {/* Item Name */}
+            <div className="space-y-1.5">
+              <label
+                htmlFor="report-item-name"
+                className="block text-sm font-medium text-[#23261F]"
+              >
+                Item Name *
               </label>
-              <div className="relative flex items-center">
+
+              <input
+                id="report-item-name"
+                name="itemName"
+                type="text"
+                required
+                value={itemName}
+                onChange={(event) => setItemName(event.target.value)}
+                placeholder="e.g. Matte Black Hydro Flask 32oz"
+                className="h-9 w-full rounded-lg border border-[#E8E4D8] bg-white px-3 py-2 text-sm text-slate-900 transition-all placeholder:text-[#6E6858]/70 focus:border-[#5170FF] focus:outline-none focus:ring-1 focus:ring-[#5170FF]"
+              />
+            </div>
+
+            {/* Category and Date */}
+            <div className="flex gap-4">
+              <div className="min-w-0 flex-1 space-y-1.5">
+                <label
+                  htmlFor="report-category"
+                  className="block text-sm font-medium text-[#23261F]"
+                >
+                  Category *
+                </label>
+
                 <select
                   id="report-category"
                   name="category"
                   required
                   value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full pl-3 pr-9 py-1.5 text-sm rounded-lg border border-[#E8E4D8] text-slate-700 bg-white focus:outline-none focus:border-[#5170ff] focus:ring-1 focus:ring-[#5170ff] transition-all appearance-none h-9 cursor-pointer"
+                  onChange={(event) => setCategory(event.target.value)}
+                  className="h-9 w-full cursor-pointer appearance-none rounded-lg border border-[#E8E4D8] bg-white px-3 text-sm text-slate-700 focus:border-[#5170FF] focus:outline-none focus:ring-1 focus:ring-[#5170FF]"
                 >
-                  <option value="" disabled className="text-[#6E6858]/70">
+                  <option value="" disabled>
                     Select a category...
                   </option>
-                  <option value="electronics">Electronics</option>
-                  <option value="personal-items">Personal Items</option>
-                  <option value="keys">Keys & Accessories</option>
-                  <option value="books">Books & Study Material</option>
-                  <option value="apparel">Apparel</option>
-                  <option value="bags">Bags & Backpacks</option>
-                  <option value="ids">IDs & Cards</option>
-                </select>
-                <span className="absolute right-3 pointer-events-none text-[#6E6858]/70 flex items-center justify-center">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
-                    <polyline points="6 9 12 15 18 9" />
-                  </svg>
-                </span>
-              </div>
-            </div>
 
-            {/* Date */}
-            <div className="flex-1 min-w-0 space-y-1.5">
-              <label htmlFor="report-date" className="block text-sm font-medium text-[#23261F]">
-                {reportType === 'lost' ? 'Date Lost *' : 'Date Found *'}
-              </label>
-              <div className="relative flex items-center">
+                  {CATEGORIES.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="min-w-0 flex-1 space-y-1.5">
+                <label
+                  htmlFor="report-date"
+                  className="block text-sm font-medium text-[#23261F]"
+                >
+                  {reportType === 'lost' ? 'Date Lost *' : 'Date Found *'}
+                </label>
+
                 <input
                   id="report-date"
                   name="date"
                   type="date"
                   required
+                  max={getLocalDateString()}
                   value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="w-full pl-3 pr-9 py-1.5 text-sm rounded-lg border border-[#E8E4D8] text-slate-700 bg-white focus:outline-none focus:border-[#5170ff] focus:ring-1 focus:ring-[#5170ff] transition-all h-9 cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+                  onChange={(event) => setDate(event.target.value)}
+                  className="h-9 w-full cursor-pointer rounded-lg border border-[#E8E4D8] bg-white px-3 text-sm text-slate-700 focus:border-[#5170FF] focus:outline-none focus:ring-1 focus:ring-[#5170FF]"
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#6E6858]/70 flex items-center justify-center w-4 h-4 shrink-0">
-                  <svg
-                    className="w-4 h-4 shrink-0 block"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.75"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    viewBox="0 0 24 24"
-                  >
-                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                    <line x1="16" y1="2" x2="16" y2="6" />
-                    <line x1="8" y1="2" x2="8" y2="6" />
-                    <line x1="3" y1="10" x2="21" y2="10" />
-                  </svg>
-                </span>
               </div>
             </div>
-          </div>
 
-          {/* Location */}
-          <div className="space-y-1.5">
-            <label htmlFor="report-location" className="block text-sm font-medium text-[#23261F]">
-              {reportType === 'lost' ? 'Where did you last have it? *' : 'Where did you find it? *'}
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6E6858]/70 flex items-center justify-center pointer-events-none">
-                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 2a7 7 0 00-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 00-7-7z" />
-                  <circle cx="12" cy="9" r="2.5" />
-                </svg>
-              </span>
-              <input
-                id="report-location"
-                name="location"
-                type="text"
+            {/* Location */}
+            <div className="space-y-1.5">
+              <label
+                htmlFor="report-location"
+                className="block text-sm font-medium text-[#23261F]"
+              >
+                {reportType === 'lost'
+                  ? 'Where did you last have it? *'
+                  : 'Where did you find it? *'}
+              </label>
+
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 flex -translate-y-1/2 items-center text-[#6E6858]/70">
+                  <svg
+                    className="h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M12 2a7 7 0 00-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 00-7-7z"
+                    />
+                    <circle cx="12" cy="9" r="2.5" />
+                  </svg>
+                </span>
+
+                <input
+                  id="report-location"
+                  name="location"
+                  type="text"
+                  required
+                  value={location}
+                  onChange={(event) => setLocation(event.target.value)}
+                  placeholder="e.g. Science Hall 104 or Student Union 2nd floor"
+                  className="h-9 w-full rounded-lg border border-[#E8E4D8] bg-white py-2 pl-9 pr-3 text-sm text-slate-900 transition-all placeholder:text-[#6E6858]/70 focus:border-[#5170FF] focus:outline-none focus:ring-1 focus:ring-[#5170FF]"
+                />
+              </div>
+            </div>
+
+            {/* Description */}
+            <div className="space-y-1.5">
+              <label
+                htmlFor="report-description"
+                className="block text-sm font-medium text-[#23261F]"
+              >
+                Description *
+              </label>
+
+              <textarea
+                id="report-description"
+                name="description"
                 required
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                placeholder="e.g. Science Hall 104 or Student Union 2nd floor"
-                className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-[#E8E4D8] placeholder-[#6E6858]/70 focus:outline-none focus:border-[#5170ff] focus:ring-1 focus:ring-[#5170ff] transition-all bg-white text-slate-900 h-9"
+                rows={3}
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                placeholder="Provide identifying marks, stickers, color details, or distinct characteristics..."
+                className="h-20 w-full resize-y rounded-lg border border-[#E8E4D8] bg-white px-3 py-2 text-sm text-slate-900 transition-all placeholder:text-[#6E6858]/70 focus:border-[#5170FF] focus:outline-none focus:ring-1 focus:ring-[#5170FF]"
               />
             </div>
-          </div>
 
-          {/* Description */}
-          <div className="space-y-1.5">
-            <label htmlFor="report-description" className="block text-sm font-medium text-[#23261F]">
-              Description *
-            </label>
-            <textarea
-              id="report-description"
-              name="description"
-              required
-              rows={2}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Provide identifying marks, stickers, color details, or distinct characteristics..."
-              className="w-full px-3 py-2 text-sm rounded-lg border border-[#E8E4D8] placeholder-[#6E6858]/70 focus:outline-none focus:border-[#5170ff] focus:ring-1 focus:ring-[#5170ff] transition-all bg-white text-slate-900 resize-none h-[64px]"
-            />
-          </div>
+            {/* Optional Photo */}
+            <div className="space-y-1.5">
+              <label className="block text-sm font-medium text-[#23261F]">
+                Photo <span className="font-normal text-[#6E6858]">(Optional)</span>
+              </label>
 
-          {/* Photo Upload (Optional) */}
-          <div className="space-y-1.5">
-            <label className="block text-sm font-medium text-[#23261F]">
-              Photo <span className="text-[#6E6858] font-normal">(Optional)</span>
-            </label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={handleFileChange}
+                className="hidden"
+              />
 
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              accept="image/png, image/jpeg, image/webp"
-              className="hidden"
-            />
+              <div className="rounded-xl border-2 border-dashed border-[#E8E4D8] px-3 py-3 text-center transition-all hover:border-[#5170FF]/50 hover:bg-slate-50/60">
+                {imagePreview ? (
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    <img
+                      src={imagePreview}
+                      alt="Selected item preview"
+                      className="h-10 w-10 rounded border object-cover"
+                    />
 
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-[#E8E4D8] hover:border-[#5170ff]/50 rounded-xl py-2.5 px-3 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-slate-50/60 transition-all group"
-            >
-              {imagePreview ? (
-                <div className="flex items-center gap-2">
-                  <img src={imagePreview} alt="Preview" className="w-8 h-8 rounded object-cover border" />
-                  <span className="text-xs font-semibold text-slate-700 truncate max-w-[240px]">
-                    {selectedFileName}
-                  </span>
-                  <span className="text-xs text-[#5170ff] underline">Change</span>
-                </div>
-              ) : (
-                <>
-                  <div className="w-7 h-7 rounded-full bg-[#5170ff]/10 flex items-center justify-center text-[#5170ff] mb-1 group-hover:scale-110 transition-transform shrink-0">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
-                    </svg>
+                    <span className="max-w-[220px] truncate text-xs font-semibold text-slate-700">
+                      {selectedFileName}
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="text-xs font-medium text-[#5170FF] underline"
+                    >
+                      Change
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleRemoveImage}
+                      className="text-xs font-medium text-red-600 hover:underline"
+                    >
+                      Remove
+                    </button>
                   </div>
-                  <span className="text-xs font-semibold text-slate-700">
-                    Drop an image here or <span className="text-[#5170ff] underline underline-offset-2">click to browse</span>
-                  </span>
-                  <span className="text-[11px] text-[#6E6858]">PNG, JPG up to 10MB</span>
-                </>
-              )}
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex w-full flex-col items-center justify-center"
+                  >
+                    <span className="mb-1 flex h-7 w-7 items-center justify-center rounded-full bg-[#5170FF]/10 text-[#5170FF]">
+                      <svg
+                        className="h-4 w-4"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z"
+                        />
+                      </svg>
+                    </span>
+
+                    <span className="text-xs font-semibold text-slate-700">
+                      Drop an image here or{' '}
+                      <span className="text-[#5170FF] underline underline-offset-2">
+                        click to browse
+                      </span>
+                    </span>
+
+                    <span className="mt-1 text-[11px] text-[#6E6858]">
+                      PNG, JPG, or WebP up to 10MB
+                    </span>
+                  </button>
+                )}
+              </div>
             </div>
+
+            {error && (
+              <p role="alert" className="text-sm text-red-600">
+                {error}
+              </p>
+            )}
           </div>
 
-          {/* Modal Action Footer */}
-          <div
-            className="flex items-center justify-end gap-3 px-6 py-3 border-t rounded-b-2xl shrink-0 border-[#E8E4D8] -mx-6 -mb-4 mt-3"
-            style={{ backgroundColor: '#FAF9F5' }}
-          >
+          {/* Footer */}
+          <div className="flex shrink-0 items-center justify-end gap-3 border-t border-[#E8E4D8] bg-[#FAF9F5] px-6 py-3">
             <button
               type="button"
               onClick={handleClose}
-              className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200/60 transition-colors focus:outline-none h-9 flex items-center justify-center cursor-pointer"
+              className="flex h-9 items-center justify-center rounded-lg px-4 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-200/60 hover:text-slate-900"
             >
               Cancel
             </button>
+
             <button
               type="submit"
-              className="px-5 py-2 text-sm font-medium bg-[#5170ff] hover:bg-[#4362ea] text-white rounded-lg shadow-sm transition-all flex items-center gap-1.5 focus:outline-none h-9 cursor-pointer"
+              className="flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#5170FF] px-5 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-[#4362EA]"
             >
-              <span>Submit Report</span>
+              Submit Report
             </button>
           </div>
         </form>
