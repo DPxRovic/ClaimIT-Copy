@@ -1,12 +1,26 @@
 import React, { useState } from 'react';
-import ForgotPassword from './ForgotPassword';
-import VerifyCode from './VerifyCode';
-import ResetPassword from './ResetPassword';
-import PasswordResetSuccess from './PasswordResetSuccess';
+import ForgotPassword from './ForgotPassword.jsx';
+import VerifyCode from './VerifyCode.jsx';
+import ResetPassword from './ResetPassword.jsx';
+import PasswordResetSuccess from './PasswordResetSuccess.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 
 export default function AuthFlow({ onNavigateToLogin }) {
   const [currentStep, setCurrentStep] = useState('forgot');
   const [userEmail, setUserEmail] = useState('');
+  const { resetPassword } = useAuth();
+
+  const handleProceedToCode = async (email) => {
+    setUserEmail(email);
+    try {
+      if (email && email.includes('@')) {
+        await resetPassword(email);
+      }
+    } catch (err) {
+      console.warn('[AuthFlow] Password reset email trigger note:', err.message);
+    }
+    setCurrentStep('verify');
+  };
 
   return (
     <div>
@@ -14,10 +28,7 @@ export default function AuthFlow({ onNavigateToLogin }) {
       {currentStep === 'forgot' && (
         <ForgotPassword
           onBackToLogin={onNavigateToLogin}
-          onProceedToCode={(email) => {
-            setUserEmail(email);
-            setCurrentStep('verify');
-          }}
+          onProceedToCode={handleProceedToCode}
         />
       )}
 

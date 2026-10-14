@@ -121,10 +121,9 @@ const getClaimsDetails = (claimsRaw = '', isResolved = false) => {
  * Exactly matches specification layout, typography, colors, borders, and spacing.
  */
 export default function ItemDetailsModal({ item, onClose, onDeleteListing }) {
-  if (!item) return null;
-
   // Escape key closes modal
   useEffect(() => {
+    if (!item) return;
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
         onClose();
@@ -132,7 +131,9 @@ export default function ItemDetailsModal({ item, onClose, onDeleteListing }) {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  }, [item, onClose]);
+
+  if (!item) return null;
 
   const isFound = (item.type || '').toLowerCase() === 'found';
   const isResolved =

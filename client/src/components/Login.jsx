@@ -3,16 +3,13 @@ import RegFormStudent from './RegFormStudent.jsx';
 import RegFormFaculty from './RegFormFaculty.jsx';
 import ForgotPassword from './ForgotPassword.jsx';
 import MainForm_User from './MainForm_User.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 
 /**
  * Login component for ClaimIt
  * 
  * Supports both controlled navigation (via props) and self-contained standalone navigation.
- * 
- * @param {Object} props
- * @param {() => void} [props.onForgotPassword] Handler to navigate to Forgot Password view
- * @param {() => void} [props.onRegister] Handler to navigate to Register view
- * @param {(user: string) => void} [props.onLoginSuccess] Handler when login form is submitted
+ * Integrated with Firebase Authentication and AuthContext.
  */
 export default function Login({ onForgotPassword, onRegister, onLoginSuccess }) {
   // Internal view state for standalone usage when props are not provided
@@ -22,17 +19,38 @@ export default function Login({ onForgotPassword, onRegister, onLoginSuccess }) 
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submittedMessage, setSubmittedMessage] = useState(null);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [imageError, setImageError] = useState(false);
 
-  const handleSubmit = (e) => {
+  const { login, register, resetPassword } = useAuth();
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (onLoginSuccess) {
-      onLoginSuccess(usernameOrEmail || 'Test User');
+    setErrorMessage('');
+
+    if (!usernameOrEmail.trim()) {
+      setErrorMessage('Please enter your username or campus email.');
+      return;
     }
 
-    // Directly switch view to MainForm_User for UI previewing
-    setInternalView('main-user');
+    if (!password) {
+      setErrorMessage('Please enter your password.');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const result = await login(usernameOrEmail.trim(), password);
+      if (onLoginSuccess) {
+        onLoginSuccess(result?.user?.displayName || usernameOrEmail);
+      }
+    } catch (err) {
+      setErrorMessage(err.message || 'Login failed. Please check your credentials.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleForgotPasswordClick = (e) => {
@@ -40,7 +58,6 @@ export default function Login({ onForgotPassword, onRegister, onLoginSuccess }) 
     if (onForgotPassword) {
       onForgotPassword();
     } else {
-      // Standalone mode: switch to ForgotPassword view directly
       setInternalView('forgot-password');
     }
   };
@@ -50,24 +67,24 @@ export default function Login({ onForgotPassword, onRegister, onLoginSuccess }) 
     if (onRegister) {
       onRegister();
     } else {
-      // Standalone mode: switch to RegForm view directly
       setInternalView('register-student');
     }
   };
 
-  // Render MainForm_User when state switches to 'main-user'
+  // Render MainForm_User if internalView is manually set to 'main-user'
   if (internalView === 'main-user') {
     return <MainForm_User onLogout={() => setInternalView('login')} />;
   }
 
-  // If running standalone and switched to register view
+  // Student registration view
   if (internalView === 'register-student') {
     return (
       <RegFormStudent
         onLogin={() => setInternalView('login')}
         onSwitchToFaculty={() => setInternalView('register-faculty')}
-        onSubmit={(formData) => {
-          setSubmittedMessage(`Account created for ${formData.fullName}! Please log in.`);
+        onSubmit={async (formData) => {
+          await register(formData);
+          setSubmittedMessage(`Account created for ${formData.fullName}! You are now logged in.`);
           setInternalView('login');
           setTimeout(() => setSubmittedMessage(null), 5000);
         }}
@@ -75,28 +92,37 @@ export default function Login({ onForgotPassword, onRegister, onLoginSuccess }) 
     );
   }
 
+  // Faculty registration view
   if (internalView === 'register-faculty') {
     return (
       <RegFormFaculty
         onLogin={() => setInternalView('login')}
         onSwitchToStudent={() => setInternalView('register-student')}
-        onSubmit={(formData) => {
-          setSubmittedMessage(`Faculty account created for ${formData.fullName}! Please log in.`);
+        onSubmit={async (formData) => {
+          const res = await register(formData);
+          setSubmittedMessage(res?.message || `Faculty account registered for ${formData.fullName}! Awaiting admin approval.`);
           setInternalView('login');
-          setTimeout(() => setSubmittedMessage(null), 5000);
+          setTimeout(() => setSubmittedMessage(null), 6000);
         }}
       />
     );
   }
 
+  // Forgot password view
   if (internalView === 'forgot-password') {
     return (
       <ForgotPassword
         onBackToLogin={() => setInternalView('login')}
-        onProceedToCode={() => {
-          setSubmittedMessage('Code dispatched. Please proceed to verify code.');
-          setInternalView('login');
-          setTimeout(() => setSubmittedMessage(null), 4000);
+        onProceedToCode={async (email) => {
+          try {
+            await resetPassword(email);
+            setSubmittedMessage(`Password reset link dispatched to ${email}. Please check your inbox.`);
+            setInternalView('login');
+            setTimeout(() => setSubmittedMessage(null), 5000);
+          } catch (resetErr) {
+            setSubmittedMessage(resetErr.message || 'Could not send reset email.');
+            setInternalView('login');
+          }
         }}
       />
     );
@@ -161,8 +187,22 @@ export default function Login({ onForgotPassword, onRegister, onLoginSuccess }) 
           </p>
         </div>
 
+        {/* Error Feedback Banner */}
+        {errorMessage && (
+          <div className="mt-5 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm font-medium flex items-center gap-2.5">
+            <svg className="w-4 h-4 shrink-0 text-rose-500" fill="currentColor" viewBox="0 0 20 20">
+              <path
+                fillRule="evenodd"
+                d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                clipRule="evenodd"
+              />
+            </svg>
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
         {/* Login Form */}
-        <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
+        <form className="mt-6 space-y-5" onSubmit={handleSubmit}>
           {/* Username or Email Field */}
           <div>
             <label
@@ -179,7 +219,8 @@ export default function Login({ onForgotPassword, onRegister, onLoginSuccess }) 
                 value={usernameOrEmail}
                 onChange={(e) => setUsernameOrEmail(e.target.value)}
                 placeholder="Enter your username or email"
-                className="w-full h-12 px-4 text-base bg-white border border-[#E8E4D8] text-[#23261F] placeholder-[#6E6858]/70 focus:outline-none focus:ring-2 focus:ring-[#5170ff]/30 focus:border-[#5170ff] transition-colors rounded-lg"
+                disabled={isSubmitting}
+                className="w-full h-12 px-4 text-base bg-white border border-[#E8E4D8] text-[#23261F] placeholder-[#6E6858]/70 focus:outline-none focus:ring-2 focus:ring-[#5170ff]/30 focus:border-[#5170ff] transition-colors rounded-lg disabled:opacity-50"
               />
             </div>
           </div>
@@ -200,7 +241,8 @@ export default function Login({ onForgotPassword, onRegister, onLoginSuccess }) 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
-                className="w-full h-12 pl-4 pr-12 text-base bg-white border border-[#E8E4D8] text-[#23261F] placeholder-[#6E6858]/70 focus:outline-none focus:ring-2 focus:ring-[#5170ff]/30 focus:border-[#5170ff] transition-colors rounded-lg"
+                disabled={isSubmitting}
+                className="w-full h-12 pl-4 pr-12 text-base bg-white border border-[#E8E4D8] text-[#23261F] placeholder-[#6E6858]/70 focus:outline-none focus:ring-2 focus:ring-[#5170ff]/30 focus:border-[#5170ff] transition-colors rounded-lg disabled:opacity-50"
               />
               <button
                 type="button"
@@ -238,9 +280,20 @@ export default function Login({ onForgotPassword, onRegister, onLoginSuccess }) 
           <div className="pt-1">
             <button
               type="submit"
-              className="w-full h-12 px-5 bg-[#5170ff] hover:bg-[#3d5cee] text-white font-medium text-base shadow-sm hover:shadow transition-all duration-150 flex items-center justify-center font-heading active:scale-[0.99] rounded-lg cursor-pointer"
+              disabled={isSubmitting}
+              className="w-full h-12 px-5 bg-[#5170ff] hover:bg-[#3d5cee] text-white font-medium text-base shadow-sm hover:shadow transition-all duration-150 flex items-center justify-center font-heading active:scale-[0.99] rounded-lg cursor-pointer disabled:opacity-60"
             >
-              Log in
+              {isSubmitting ? (
+                <span className="flex items-center gap-2">
+                  <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                  </svg>
+                  Logging in...
+                </span>
+              ) : (
+                'Log in'
+              )}
             </button>
           </div>
 

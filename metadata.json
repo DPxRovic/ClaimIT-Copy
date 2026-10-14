@@ -1,0 +1,8 @@
+{
+  "name": "ClaimIt",
+  "description": "Lost and Found management platform for reporting, claiming, and tracking lost items.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

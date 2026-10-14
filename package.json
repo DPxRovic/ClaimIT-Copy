@@ -1,0 +1,23 @@
+{
+  "name": "claimit",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "client",
+    "functions"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=client",
+    "build:client": "npm run build --workspace=client",
+    "build:functions": "npm run build --workspace=functions",
+    "build": "npm run build --workspace=client && npm run build --workspace=functions",
+    "lint:client": "npm run lint --workspace=client",
+    "lint:functions": "npm run lint --workspace=functions",
+    "lint": "npm run lint --workspace=client && npm run lint --workspace=functions",
+    "preview": "npm run preview --workspace=client",
+    "test": "node tests/auth-validation.test.js",
+    "emulators": "firebase emulators:start",
+    "emulators:export": "firebase emulators:export ./emulator-data",
+    "emulators:import": "firebase emulators:start --import=./emulator-data"
+  }
+}

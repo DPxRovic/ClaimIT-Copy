@@ -39,6 +39,8 @@ export default function MainForm_User({
   onProfileSettings,
   onLogout,
   user,
+  onSaveProfile,
+  onSaveAccount,
 }) {
   // Default page.
   const [currentTab, setCurrentTab] = useState('home');
@@ -255,7 +257,12 @@ export default function MainForm_User({
               <PageLoading label="Profile & Settings" />
             }
           >
-            <ProfileSettings />
+            <ProfileSettings
+              initialUser={user}
+              onSaveProfile={onSaveProfile}
+              onSaveAccount={onSaveAccount}
+              onLogout={onLogout}
+            />
           </Suspense>
         );
 

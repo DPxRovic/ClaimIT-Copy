@@ -1,0 +1,44 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isImage() {
+      return request.resource.contentType.matches('image/(jpeg|png|webp)');
+    }
+
+    function isUnderMaxSize(maxMegabytes) {
+      return request.resource.size <= maxMegabytes * 1024 * 1024;
+    }
+
+    // Default deny: all storage paths closed unless explicitly granted
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    // Item photo uploads for reports
+    match /reports/{reportId}/{fileName} {
+      allow read: if isAuthenticated();
+      // Write permissions will be connected in Prompt 5/6
+      allow write: if false;
+    }
+
+    // Proof of ownership / claim evidence
+    match /claims/{claimId}/{fileName} {
+      // Read restricted: claimant, reporter, or admin (managed via signed URLs or Cloud Functions)
+      allow read: if false;
+      // Write permissions will be connected in Prompt 5/7
+      allow write: if false;
+    }
+
+    // User avatar pictures
+    match /avatars/{userId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.uid == userId && isImage() && isUnderMaxSize(5);
+    }
+  }
+}
