@@ -84,7 +84,7 @@ interface ServiceErrorResponse {
 - `updateUserProfile(uid, updates)`: Updates allowed profile fields (`fullName`, `avatarUrl`, `program`, `yearLevel`, `section`, `department`) in Firestore and Auth.
 - `subscribeUserProfile(uid, callback)`: Real-time listener (`onSnapshot`) syncing profile changes.
 
-#### `manageAccountStatus` (Callable Function — Admin Only)
+#### `manageAccountStatus` (Callable Function — Admin Only — [IMPLEMENTED])
 - **Description**: Approves/declines a faculty account, or suspends/reactivates any user account.
 - **Request Payload**:
   ```typescript
@@ -94,13 +94,47 @@ interface ServiceErrorResponse {
     reason?: string;
   }
   ```
-- **Authorization**: Caller must have `role === 'admin'`.
+- **Authorization**: Caller must have `role === 'admin'` in custom claims (`assertAdmin`).
+- **Validation**:
+  - Validates `assertAllowedKeys` (rejects unexpected parameters).
+  - Target user must exist in Firestore.
+  - State machine invariants:
+    - Cannot approve non-faculty or already active faculty.
+    - Cannot decline non-faculty.
+    - Cannot suspend already suspended account.
+    - Admins cannot suspend or decline their own account (prevents accidental lockout).
 - **Behavior**:
-  - Updates custom claims on target user.
-  - Updates `users/{targetUid}.status`.
+  - Updates custom claims on target user (`adminAuth.setCustomUserClaims`).
+  - Updates `users/{targetUid}.status` (and `approvedAt`, `approvedBy` for approvals).
   - Appends audit entry in `activity_logs`.
-  - Dispatches in-app notification to the target user.
-- **Response**: `{ success: boolean, updatedStatus: string }`
+  - Revokes refresh tokens on suspension or decline.
+- **Response**: `{ success: boolean, targetUid: string, previousStatus: string, newStatus: string, action: string }`
+
+#### `setAdminRole` (Callable Function — Admin Only — [IMPLEMENTED])
+- **Description**: Grants or revokes the administrator role for an existing campus member.
+- **Request Payload**:
+  ```typescript
+  interface SetAdminRoleRequest {
+    targetUid: string;
+    enabled: boolean;
+  }
+  ```
+- **Authorization**: Caller must have `role === 'admin'` in custom claims (`assertAdmin`).
+- **Validation**:
+  - Admins cannot revoke their own admin privileges.
+  - Target user must exist.
+- **Behavior**:
+  - Updates custom claims: `{ role: enabled ? 'admin' : ..., status: 'active' }`.
+  - Updates Firestore profile `role` and `status`.
+  - Records immutable audit log in `activity_logs`.
+- **Response**: `{ success: boolean, targetUid: string, role: string, isAdmin: boolean }`
+
+#### Server Authorization Helpers (`functions/src/utils/auth-guards.ts` — [IMPLEMENTED])
+- `assertAuthenticated(auth)`: Requires valid Firebase Auth session; returns `{ uid, token }`.
+- `assertAdmin(auth)`: Requires `token.role === 'admin'`; throws `permission-denied` if missing/ordinary user.
+- `assertActiveUser(auth)`: Requires `token.status === 'active'`; throws `permission-denied` for suspended/pending users.
+- `assertOwnerOrAdmin(auth, resourceOwnerUid)`: Requires caller to be resource owner or admin.
+- `assertAllowedKeys(payload, allowedKeys, contextName)`: Strictly rejects payloads with unexpected keys.
 
 ---
 

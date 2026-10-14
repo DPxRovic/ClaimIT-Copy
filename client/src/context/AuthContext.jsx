@@ -69,6 +69,10 @@ export function AuthProvider({ children }) {
     setAuthError(null);
     try {
       const result = await loginUser(email, password);
+      if (result?._isMock) {
+        setCurrentUser(result.user);
+        setUserProfile(result.profile);
+      }
       return result;
     } catch (err) {
       const friendlyMessage = formatAuthError(err);
@@ -81,6 +85,10 @@ export function AuthProvider({ children }) {
     setAuthError(null);
     try {
       const result = await registerUserService(formData);
+      if (result?._isMock) {
+        setCurrentUser(result.user);
+        setUserProfile(result.profile);
+      }
       return result;
     } catch (err) {
       const friendlyMessage = formatAuthError(err);
@@ -94,8 +102,10 @@ export function AuthProvider({ children }) {
     try {
       await logoutUser();
     } catch (err) {
-      console.error('Logout error:', err);
+      console.warn('Logout error:', err);
     }
+    setCurrentUser(null);
+    setUserProfile(null);
   };
 
   const resetPassword = async (email) => {

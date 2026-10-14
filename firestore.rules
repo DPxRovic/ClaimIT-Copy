@@ -3,79 +3,145 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions for common authorization checks
+    // -------------------------------------------------------------------------
+    // Shared Authorization Helper Functions
+    // -------------------------------------------------------------------------
+
+    // Verifies the user has a valid authenticated session
     function isAuthenticated() {
-      return request.auth != null;
+      return request.auth != null && request.auth.uid != null;
     }
 
+    // Verifies caller matches the specified user ID
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    function isActiveUser() {
-      return isAuthenticated() &&
-        (request.auth.token.status == 'active' || request.auth.token.status == 'Active');
-    }
-
+    // Cryptographic authority: role must be 'admin' in Custom Claims
     function isAdmin() {
       return isAuthenticated() &&
         (request.auth.token.role == 'admin' || request.auth.token.role == 'Admin');
     }
 
-    // Default deny: any collection not explicitly matched is closed
+    // Verifies user has an active status in Custom Claims
+    function isActiveUser() {
+      return isAuthenticated() &&
+        (request.auth.token.status == 'active' || request.auth.token.status == 'Active');
+    }
+
+    // Validates string field presence and length bounds
+    function isValidString(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    // -------------------------------------------------------------------------
+    // Default Deny: All collections are closed unless explicitly matched
+    // -------------------------------------------------------------------------
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // User profiles: authenticated users can read their own profile; admins can read all profiles.
-    // Client creation is permitted only for self-registration with non-admin roles and matching status.
-    // Client updates are restricted to non-privileged fields (never role, status, approvedAt, uid, email).
+    // -------------------------------------------------------------------------
+    // User Profiles: users/{userId}
+    // -------------------------------------------------------------------------
+    // Read:
+    //   - Authenticated user can read their own profile.
+    //   - Administrators can inspect all user profiles.
+    // Create:
+    //   - Only caller matching userId can create their profile.
+    //   - Role can only be 'student' or 'faculty' (never 'admin').
+    //   - Status must match role invariant ('Active' for student, 'Pending approval' for faculty).
+    //   - Protected administrative fields cannot be injected.
+    // Update:
+    //   - Ordinary users can only modify non-privileged profile fields.
+    //   - Role, status, approvedAt, approvedBy, uid, email, and createdAt are IMMUTABLE for users.
+    //   - Administrators possess full profile update authority.
+    // Delete:
+    //   - Restricted exclusively to administrators.
+    // -------------------------------------------------------------------------
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
+
       allow create: if isOwner(userId) &&
         request.resource.data.uid == userId &&
         (request.resource.data.role in ['student', 'faculty']) &&
-        (request.resource.data.role == 'student' ? request.resource.data.status == 'Active' : request.resource.data.status == 'Pending approval');
-      allow update: if (isOwner(userId) &&
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'status', 'approvedAt', 'approvedBy', 'uid', 'email'])) ||
-        isAdmin();
+        (request.resource.data.role == 'student'
+          ? request.resource.data.status == 'Active'
+          : request.resource.data.status == 'Pending approval') &&
+        !request.resource.data.keys().hasAny(['approvedAt', 'approvedBy', 'isAdmin', 'superAdmin']) &&
+        isValidString(request.resource.data.fullName, 2, 100);
+
+      allow update: if (
+        isOwner(userId) &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'role', 'status', 'approvedAt', 'approvedBy', 'uid', 'email', 'createdAt'
+        ]) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'fullName', 'avatarUrl', 'program', 'yearLevel', 'section', 'department', 'updatedAt'
+        ]) &&
+        (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['fullName']) ||
+          isValidString(request.resource.data.fullName, 2, 100)
+        )
+      ) || isAdmin();
+
       allow delete: if isAdmin();
     }
 
-    // Reports: Initial baseline placeholder for upcoming milestones.
-    // Read: Authenticated users can browse listings.
-    // Writes will be fully enabled in Report Milestone (Prompt 6).
+    // -------------------------------------------------------------------------
+    // Reports: reports/{reportId} (Listing Catalog)
+    // -------------------------------------------------------------------------
+    // Read: Authenticated users can browse campus listings.
+    // Write: Denied in Milestone 4. Will be enabled with validated schema in Prompt 6.
+    // -------------------------------------------------------------------------
     match /reports/{reportId} {
       allow read: if isAuthenticated();
       allow write: if false; // Denied until Prompt 6
 
-      // Claims subcollection: Denied until Claim Milestone (Prompt 7)
+      // Claims subcollection: Denied until Prompt 7
       match /claims/{claimId} {
         allow read, write: if false;
 
-        // Messages subcollection: Denied until Messaging Milestone (Prompt 8)
+        // Messages subcollection: Denied until Prompt 8
         match /messages/{messageId} {
           allow read, write: if false;
         }
       }
     }
 
+    // -------------------------------------------------------------------------
     // Taxonomies: Categories, academic programs, and departments
+    // -------------------------------------------------------------------------
+    // Read: Authenticated campus members.
+    // Write: Administrators only.
+    // -------------------------------------------------------------------------
     match /taxonomies/{taxonomyType}/items/{itemId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
     }
 
-    // Activity Logs: Read by administrators only; written exclusively via Admin SDK
+    // -------------------------------------------------------------------------
+    // Activity Logs: activity_logs/{logId} (System Audit Trail)
+    // -------------------------------------------------------------------------
+    // Read: Administrators only.
+    // Write: Denied from client SDKs; written exclusively by trusted Admin SDK.
+    // -------------------------------------------------------------------------
     match /activity_logs/{logId} {
       allow read: if isAdmin();
       allow write: if false;
     }
 
-    // Notifications: Recipient can read and update (mark read) their own notifications
+    // -------------------------------------------------------------------------
+    // Notifications: notifications/{notificationId}
+    // -------------------------------------------------------------------------
+    // Read: Targeted recipient only.
+    // Update: Targeted recipient can only toggle the 'unread' boolean.
+    // Create & Delete: Denied from client SDKs; managed via server-side triggers.
+    // -------------------------------------------------------------------------
     match /notifications/{notificationId} {
       allow read: if isAuthenticated() && resource.data.recipientUid == request.auth.uid;
-      allow update: if isAuthenticated() && resource.data.recipientUid == request.auth.uid &&
+      allow update: if isAuthenticated() &&
+        resource.data.recipientUid == request.auth.uid &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['unread']);
       allow create, delete: if false;
     }

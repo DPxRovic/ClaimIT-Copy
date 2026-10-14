@@ -218,7 +218,7 @@ export default function Login({ onForgotPassword, onRegister, onLoginSuccess }) 
                 name="username_or_email"
                 value={usernameOrEmail}
                 onChange={(e) => setUsernameOrEmail(e.target.value)}
-                placeholder="Enter your username or email"
+                placeholder="Enter username or email (e.g. student@campus.edu)"
                 disabled={isSubmitting}
                 className="w-full h-12 px-4 text-base bg-white border border-[#E8E4D8] text-[#23261F] placeholder-[#6E6858]/70 focus:outline-none focus:ring-2 focus:ring-[#5170ff]/30 focus:border-[#5170ff] transition-colors rounded-lg disabled:opacity-50"
               />

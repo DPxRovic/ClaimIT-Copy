@@ -81,7 +81,15 @@ ClaimIt is a centralized web platform designed for university campuses to stream
 - User enters and confirms a new password (>= 8 characters).
 - Upon success, all existing auth sessions are refreshed.
 
+#### F. Administrator Provisioning & Single Source of Truth
+- **Single Source of Truth**: Firebase Authentication Custom Claims (`request.auth.token.role` and `request.auth.token.status`) serve as the cryptographic authority for all Security Rules and Cloud Functions. The Firestore `users/{uid}` document reflects this authority and is synchronized via trusted Admin SDK calls.
+- **No Self-Registration**: Public self-registration for administrators is strictly prohibited. Client requests requesting `role: 'admin'` are rejected.
+- **Initial Admin Provisioning**: Initial administrators must be provisioned via the secure server-side CLI tool (`node scripts/provision-admin.js <email_or_uid>`) executed by authorized infrastructure personnel with Admin SDK credentials.
+- **Subsequent Admin Management**: Existing verified administrators can grant or revoke admin privileges using the trusted `setAdminRole` Cloud Function.
+- **No Backdoors**: There are no hidden frontend routes, secret URL parameters, or hardcoded passwords for administrator elevation.
+
 ---
+
 
 ### 3.2 Report Lifecycle (Lost & Found Listings)
 

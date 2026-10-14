@@ -24,7 +24,7 @@ ClaimIt is a comprehensive university campus Lost and Found management web appli
 ## 2. Milestone Discipline & Implementation Scope
 
 - **Sequential Execution**: Follow the milestone prompts strictly.
-- **Current Milestone**: **Milestone 3 Completed — Ready for Milestone 4 (Firestore Database Schemas & Rules)**.
+- **Current Milestone**: **Milestone 4 Completed — Roles, Authorization & Firebase Security Rules Implemented (Ready for Milestone 5 / Reports Lifecycle)**.
 - **Scope Restriction**: Only implement features requested for the active milestone. Do NOT jump ahead to reports, claims, messaging, or admin modules until their respective prompts.
 - **Preserve Existing Frontend**:
   - Do NOT redesign or restyle the frontend.

@@ -23,5 +23,7 @@ export const healthCheck = onCall(async (_request: CallableRequest) => {
   };
 });
 
-// Authentication module functions
+// Authentication and user lifecycle functions
 export { registerUser } from './modules/auth.js';
+export { manageAccountStatus, setAdminRole } from './modules/admin.js';
+

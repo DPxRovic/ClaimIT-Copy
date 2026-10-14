@@ -55,10 +55,10 @@ This document outlines the system architecture, Firebase resource topology, data
 | **Styling & Assets** | **Implemented** (Tailwind CDN, CSS variables, Lucide icons) | Maintained as-is |
 | **Client Firebase SDK** | **Configured locally** (`client/src/firebase/config.js` singleton) | Web SDK v11 modular; connects to Emulators |
 | **Authentication** | **Implemented** (Firebase Auth, Custom Claims, AuthContext, session restore) | Production Firebase Auth |
-| **Cloud Firestore** | **Implemented for Users** (`users/{uid}` with security rules); domain collections pending | Cloud Firestore; domain access in Prompt 4 |
-| **Firebase Storage** | Rules Configured Locally (`storage.rules`) | Cloud Storage; domain access in Prompt 5 |
-| **Cloud Functions** | **Implemented** (`/functions` TypeScript 2nd Gen, `registerUser`, `healthCheck`) | 2nd Gen Functions; domain logic in Prompts 6–9 |
-| **Security Rules** | **Implemented Locally** (`firestore.rules`, `storage.rules`) | Safe-by-default; pending deployment to Cloud project |
+| **Cloud Firestore** | **Implemented for Users & Security Rules** (`users/{uid}` field-level guards, strict default deny) | Cloud Firestore; reports in Prompt 6 |
+| **Firebase Storage** | **Implemented Locally** (`storage.rules` MIME & size guards, private evidence protection) | Cloud Storage; domain access in Prompt 5 |
+| **Cloud Functions** | **Implemented** (`/functions` TypeScript 2nd Gen, `registerUser`, `manageAccountStatus`, `setAdminRole`, `healthCheck`) | 2nd Gen Functions; domain logic in Prompts 6–9 |
+| **Security Rules** | **Implemented & Verified** (`firestore.rules`, `storage.rules`, 10 test suites passed) | Safe-by-default; field-level immutability enforced |
 | **Emulator Suite** | **Configured locally** (`firebase.json` Auth, Firestore, Storage, Functions, UI) | Local offline emulation for development |
 
 ---

@@ -93,6 +93,9 @@ This installs both root workspace dependencies and client dependencies in a sing
 | `npm run build:client` | Builds frontend SPA only |
 | `npm run build:functions` | Compiles Cloud Functions TypeScript only (`tsc`) |
 | `npm run lint` | Runs oxlint on frontend and typecheck on Cloud Functions |
+| `npm test` | Executes all authentication, profile, and security rules test suites |
+| `npm run test:security` | Executes the 10-suite security rules & authorization test harness |
+| `npm run provision:admin` | CLI tool to provision or revoke administrator privileges via Admin SDK |
 | `npm run preview` | Serves the production client build locally on port 3000 |
 | `npm run emulators` | Launches Firebase Emulator Suite (Auth: 9099, Firestore: 8080, Functions: 5001, Storage: 9199, UI: 4000) |
 | `npm run emulators:export` | Exports emulator state to `./emulator-data` |
@@ -122,7 +125,7 @@ ClaimIt follows a disciplined 10-milestone backend development plan:
 - [x] **Milestone 1**: Project Audit, Canonical Documentation (`CLAUDE.md`, `PRODUCT.md`, `DESIGN.md`, `ARCHITECTURE.md`, `README.md`), and Workspace Normalization.
 - [x] **Milestone 2**: Backend Tooling, Firebase Project Setup, Local Emulator Suite Configuration, and Client/Server SDK Initialization.
 - [x] **Milestone 3**: Firebase Authentication, Registration, and Role-Based Access Control (Custom Claims).
-- [ ] **Milestone 4**: Firestore Database Schemas, Indexes, and Security Rules (`firestore.rules`).
+- [x] **Milestone 4**: Roles, Authorization, and Firebase Security Rules (`firestore.rules`, `storage.rules`, `auth-guards.ts`, `provision-admin.js`).
 - [ ] **Milestone 5**: Firebase Storage Configuration and File Upload Rules (`storage.rules`).
 - [ ] **Milestone 6**: Reports Lifecycle Implementation (Create, Browse, Search, Filter, Details).
 - [ ] **Milestone 7**: Claims & Ownership Verification Implementation with Cloud Functions.

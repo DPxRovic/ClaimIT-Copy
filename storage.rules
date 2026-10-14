@@ -3,42 +3,75 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
+    // -------------------------------------------------------------------------
+    // Storage Authorization & Validation Helpers
+    // -------------------------------------------------------------------------
+
     function isAuthenticated() {
-      return request.auth != null;
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (request.auth.token.role == 'admin' || request.auth.token.role == 'Admin');
     }
 
     function isImage() {
-      return request.resource.contentType.matches('image/(jpeg|png|webp)');
+      return request.resource != null &&
+        request.resource.contentType.matches('image/(jpeg|png|webp)');
     }
 
     function isUnderMaxSize(maxMegabytes) {
-      return request.resource.size <= maxMegabytes * 1024 * 1024;
+      return request.resource != null &&
+        request.resource.size <= maxMegabytes * 1024 * 1024;
     }
 
-    // Default deny: all storage paths closed unless explicitly granted
+    // -------------------------------------------------------------------------
+    // Default Deny: All unspecified storage paths are strictly denied
+    // -------------------------------------------------------------------------
     match /{allPaths=**} {
       allow read, write: if false;
     }
 
-    // Item photo uploads for reports
-    match /reports/{reportId}/{fileName} {
-      allow read: if isAuthenticated();
-      // Write permissions will be connected in Prompt 5/6
-      allow write: if false;
-    }
-
-    // Proof of ownership / claim evidence
-    match /claims/{claimId}/{fileName} {
-      // Read restricted: claimant, reporter, or admin (managed via signed URLs or Cloud Functions)
-      allow read: if false;
-      // Write permissions will be connected in Prompt 5/7
-      allow write: if false;
-    }
-
-    // User avatar pictures
+    // -------------------------------------------------------------------------
+    // User Avatars: avatars/{userId}/{fileName}
+    // -------------------------------------------------------------------------
+    // Read: Authenticated campus members can view user profile avatars.
+    // Write: Users can upload and replace only their own avatar (<= 5MB, image only).
+    // Delete: Owner or administrator.
+    // -------------------------------------------------------------------------
     match /avatars/{userId}/{fileName} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && request.auth.uid == userId && isImage() && isUnderMaxSize(5);
+      allow write: if isOwner(userId) && isImage() && isUnderMaxSize(5);
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    // -------------------------------------------------------------------------
+    // Item Photographs: reports/{reportId}/{fileName}
+    // -------------------------------------------------------------------------
+    // Read: Authenticated users can view photos attached to campus listings.
+    // Write: Denied from client in Prompt 4. Connected in Prompt 5/6.
+    // -------------------------------------------------------------------------
+    match /reports/{reportId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // Claim Evidence Attachments: claims/{claimId}/{fileName}
+    // -------------------------------------------------------------------------
+    // Privacy Requirement: Evidence (receipts, serial numbers, intimate photos)
+    // must NEVER be publicly readable or accessible to unrelated users.
+    // Access is managed via authenticated backend verification and signed URLs.
+    // Direct client reads and writes are denied by default.
+    // -------------------------------------------------------------------------
+    match /claims/{claimId}/{fileName} {
+      allow read: if false;
+      allow write: if false;
     }
   }
 }
