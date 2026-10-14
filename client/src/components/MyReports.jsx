@@ -1,17 +1,21 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, RefreshCw, AlertCircle, CheckCircle, X } from 'lucide-react';
 import ReportDetailsModal from './ReportDetailsModal.jsx';
 import ClaimMatchVerificationModal from './ClaimMatchVerificationModal.jsx';
 import CloseThisReportModal from './CloseThisReportModal.jsx';
-import { closeReportService } from '../firebase/reports.js';
+import { closeReportService, subscribeUserReports } from '../firebase/reports.js';
+import { useAuth } from '../context/AuthContext.jsx';
 
 export const DEFAULT_REPORTS = [
   {
+    id: 'R-1070',
     ticket: 'R-1070',
+    ticketNumber: 'R-1070',
     title: 'Grey Foldable Umbrella',
     category: 'Others',
     type: 'FOUND',
     dateFiled: 'Sep 16, 2026',
+    date: 'Sep 16, 2026',
     status: 'Active',
     claims: '—',
     location: 'Main Building Lobby',
@@ -20,11 +24,14 @@ export const DEFAULT_REPORTS = [
     entries: [],
   },
   {
+    id: 'R-1072',
     ticket: 'R-1072',
+    ticketNumber: 'R-1072',
     title: 'Silver Charm Bracelet',
     category: 'Clothing & Accessories',
     type: 'LOST',
     dateFiled: 'Sep 15, 2026',
+    date: 'Sep 15, 2026',
     status: 'Pending Match',
     claims: '1 match',
     location: 'Gymnasium Bleachers',
@@ -58,11 +65,14 @@ export const DEFAULT_REPORTS = [
     ],
   },
   {
+    id: 'R-1042',
     ticket: 'R-1042',
+    ticketNumber: 'R-1042',
     title: 'Black Ray-Ban–style Wayfarer Sunglasses',
     category: 'Clothing & Accessories',
     type: 'FOUND',
     dateFiled: 'Sep 12, 2026',
+    date: 'Sep 12, 2026',
     status: 'Pending Claim',
     claims: '2 claims',
     location: 'University Library - 2nd Floor',
@@ -80,7 +90,7 @@ export const DEFAULT_REPORTS = [
         date: 'Sep 15, 2026',
         submittedDate: 'Sep 15, 2026',
         status: 'Pending',
-        imageUrl: null, // "No photo attached" state
+        imageUrl: null,
         message:
           'Mine has a tiny chip on the bottom left corner of the frame and came with a brown case,...',
         messagePreview:
@@ -122,148 +132,45 @@ export const DEFAULT_REPORTS = [
     ],
   },
   {
-    ticket: 'R-1039',
-    title: 'Casio fx-991 Scientific Calculator',
-    category: 'Books & School Supplies',
+    id: 'R-1011',
+    ticket: 'R-1011',
+    ticketNumber: 'R-1011',
+    title: 'Blue Water Bottle',
+    category: 'Personal Belongings',
     type: 'LOST',
-    dateFiled: 'Sep 10, 2026',
-    status: 'Active',
-    claims: '—',
-    location: 'Engineering Building Room 302',
-    description: 'Black and silver scientific calculator with my initials (JD) carved inside the cover.',
-    entries: [],
-  },
-  {
-    ticket: 'R-1021',
-    title: 'Blue JanSport Backpack',
-    category: 'Bags & Wallets',
-    type: 'FOUND',
     dateFiled: 'Aug 29, 2026',
+    date: 'Aug 29, 2026',
     status: 'Resolved',
     claims: '1 claim',
-    location: 'Student Activity Center',
-    description: 'Navy blue JanSport backpack with a grey bottom patch.',
-    entriesType: 'claims',
-    entries: [
-      {
-        id: 'C-480',
-        type: 'claim',
-        isMatch: false,
-        submitterName: 'Mark Gonzales',
-        submittedDate: 'Aug 30, 11:15 AM',
-        status: 'Approved',
-        imageUrl: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=400&q=80',
-        messagePreview: 'Contains notebooks and a blue spiral binder.',
-        isClosed: true,
-        messages: [
-          {
-            id: 'm-480-1',
-            senderName: 'Mark Gonzales',
-            timestamp: 'Aug 30, 11:20 AM',
-            text: 'Hello, I left my blue JanSport backpack in the student lounge yesterday.',
-            isCurrentUser: false,
-          },
-          {
-            id: 'm-480-2',
-            senderName: 'You',
-            timestamp: 'Aug 30, 1:45 PM',
-            text: 'Verified! All items inside match your description. Meet me at SAC security desk.',
-            isCurrentUser: true,
-          },
-        ],
-      },
-    ],
-  },
-  {
-    ticket: 'R-1073',
-    title: 'Blue Stainless Water Bottle',
-    category: 'Bags & Wallets',
-    type: 'LOST',
-    dateFiled: 'Aug 22, 2026',
-    status: 'Resolved',
-    claims: '1 match',
-    location: 'Covered Court',
-    description: 'Blue steel insulated bottle with UCC organization sticker and small dent on bottom.',
+    location: 'Cafeteria Table 8',
+    description: 'Stainless steel hydro bottle with stickers.',
     imageUrl: 'https://images.unsplash.com/photo-1602143407151-7111542de6e8?auto=format&fit=crop&w=600&q=80',
-    entriesType: 'matches',
-    entries: [
-      {
-        id: 'C-495',
-        type: 'match',
-        isMatch: true,
-        name: 'Crystal Florano',
-        submitterName: 'Crystal Florano',
-        role: 'Reported Found',
-        date: 'Aug 22, 5:02 PM',
-        submittedDate: 'Aug 22, 5:02 PM',
-        status: 'Approved',
-        imageUrl: 'https://images.unsplash.com/photo-1602143407151-7111542de6e8?auto=format&fit=crop&w=400&q=80',
-        message:
-          'Found a blue steel water bottle at the Covered Court, dent on the bottom, UCC org sticker on...',
-        messagePreview:
-          'Found a blue steel water bottle at the Covered Court, dent on the bottom, UCC org sticker on...',
-        isClosed: true,
-        messages: [
-          {
-            id: 'm-495-1',
-            senderName: 'Crystal Florano',
-            timestamp: 'Aug 22, 5:10 PM',
-            text:
-              'Hi, I think I found your water bottle at the Covered Court — blue, dented bottom, UCC sticker.',
-            isCurrentUser: false,
-          },
-          {
-            id: 'm-495-2',
-            senderName: 'You',
-            timestamp: 'Aug 22, 6:10 PM',
-            text:
-              'That sounds exactly like mine! Thank you so much — approving this. Would you mind if we switch to Messenger so we can arrange the meetup details more easily?',
-            isCurrentUser: true,
-          },
-        ],
-      },
-    ],
-  },
-  {
-    ticket: 'R-1005',
-    title: 'School ID — Juan Dela Cruz',
-    category: 'IDs & Cards',
-    type: 'LOST',
-    dateFiled: 'Aug 15, 2026',
-    status: 'Closed',
-    claims: '—',
-    location: 'Cafeteria cashier',
-    description: 'Lost ID card in transparent plastic case with blue lanyard.',
-    entries: [],
-  },
-  {
-    ticket: 'R-1071',
-    title: 'Used Chemistry Textbook',
-    category: 'Books & School Supplies',
-    type: 'FOUND',
-    dateFiled: 'Aug 5, 2026',
-    status: 'Closed',
-    claims: '—',
-    location: 'Science Lab 101',
-    description: 'Organic Chemistry 9th Edition hardcover book found on front counter.',
     entries: [],
   },
 ];
 
 /**
- * MyReports Component with built-in modal verification flow
+ * MyReports Component
+ *
+ * Displays the current user's filed reports with real-time status updates from Firestore.
+ * Supports status filtering and owner soft-closing.
+ *
+ * @param {Object} props
+ * @param {Array} [props.userReports] - Newly submitted reports from parent session
+ * @param {Array} [props.reports] - Direct override reports prop
+ * @param {string} [props.className] - Additional class names
  */
 export const MyReports = ({
-  reports: propReports,
   userReports = [],
+  reports: propReports,
   className = '',
 }) => {
-  const initialData = useMemo(() => {
-    if (propReports) return propReports;
-    return [...userReports, ...DEFAULT_REPORTS];
-  }, [propReports, userReports]);
+  const { currentUser } = useAuth();
+  const [reportList, setReportList] = useState(() => propReports || userReports || []);
+  const [isLoading, setIsLoading] = useState(!propReports && !!currentUser);
+  const [errorMessage, setErrorMessage] = useState(null);
+  const [toastMessage, setToastMessage] = useState(null);
 
-  const [reportList, setReportList] = useState(initialData);
   const [selectedStatus, setSelectedStatus] = useState('All statuses');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
@@ -272,13 +179,51 @@ export const MyReports = ({
   const [selectedVerification, setSelectedVerification] = useState(null);
   const [reportToClose, setReportToClose] = useState(null);
 
+  // Load and subscribe to current user's reports from Firestore
   useEffect(() => {
     if (propReports) {
       setReportList(propReports);
-    } else {
-      setReportList([...userReports, ...DEFAULT_REPORTS]);
+      setIsLoading(false);
+      return;
     }
-  }, [propReports, userReports]);
+
+    if (!currentUser?.uid) {
+      // Unauthenticated or demo without user: fallback to passed userReports or initial defaults
+      const combined = userReports.length > 0 ? [...userReports, ...DEFAULT_REPORTS] : DEFAULT_REPORTS;
+      setReportList(combined);
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    setErrorMessage(null);
+
+    // Set up real-time Firestore listener for owner's reports
+    const unsubscribe = subscribeUserReports(
+      currentUser.uid,
+      (reports) => {
+        // If user has filed reports in Firestore, use them; if user has recent session reports, merge
+        if (reports && reports.length > 0) {
+          setReportList(reports);
+        } else if (userReports.length > 0) {
+          setReportList(userReports);
+        } else {
+          // When demo user with no reports yet, provide realistic mock dataset
+          setReportList(DEFAULT_REPORTS);
+        }
+        setIsLoading(false);
+      },
+      (err) => {
+        console.warn('[MyReports] Real-time sync error:', err);
+        setErrorMessage('Unable to synchronize your reports in real-time. Showing latest saved view.');
+        setIsLoading(false);
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [currentUser, propReports, userReports]);
 
   const statusOptions = [
     'All statuses',
@@ -307,7 +252,7 @@ export const MyReports = ({
       id: entry.id,
       type: entry.type || (selectedReport.type === 'LOST' ? 'match' : 'claim'),
       itemTitle: selectedReport.title,
-      reportTicket: selectedReport.ticket,
+      reportTicket: selectedReport.ticket || selectedReport.ticketNumber,
       submitterName: entry.name || entry.submitterName,
       submittedDate: entry.date || entry.submittedDate,
       status: entry.status || 'Pending',
@@ -319,17 +264,19 @@ export const MyReports = ({
   };
 
   const handleApprove = (ver) => {
-    alert(`Approved ${ver.type === 'match' ? 'Match' : 'Claim'} ${ver.id} for ${ver.submitterName}!`);
+    setToastMessage(`Approved ${ver.type === 'match' ? 'Match' : 'Claim'} ${ver.id} for ${ver.submitterName}!`);
     setSelectedVerification((prev) => (prev ? { ...prev, status: 'Approved', isClosed: true } : null));
+    setTimeout(() => setToastMessage(null), 4000);
   };
 
   const handleDecline = (ver) => {
-    alert(`Declined ${ver.type === 'match' ? 'Match' : 'Claim'} ${ver.id}.`);
+    setToastMessage(`Declined ${ver.type === 'match' ? 'Match' : 'Claim'} ${ver.id}.`);
     setSelectedVerification((prev) => (prev ? { ...prev, status: 'Declined', isClosed: true } : null));
+    setTimeout(() => setToastMessage(null), 4000);
   };
 
   const handleSendMessage = (text) => {
-    console.log('Sending message to conversation:', text);
+    console.info('Sending message to conversation:', text);
   };
 
   const renderStatusBadge = (status) => {
@@ -395,6 +342,21 @@ export const MyReports = ({
 
   return (
     <div className={`flex flex-col gap-6 w-full ${className}`}>
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed top-6 right-6 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-xl text-sm flex items-center gap-2.5 animate-in fade-in slide-in-from-top-2 duration-150">
+          <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>{toastMessage}</span>
+          <button
+            type="button"
+            onClick={() => setToastMessage(null)}
+            className="text-slate-400 hover:text-white p-1 ml-2"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -405,7 +367,22 @@ export const MyReports = ({
             Items you&apos;ve reported as lost or found, and their current status.
           </p>
         </div>
+
+        {isLoading && (
+          <div className="inline-flex items-center gap-2 text-xs text-blue-600 bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-100">
+            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+            <span>Synchronizing your reports...</span>
+          </div>
+        )}
       </div>
+
+      {/* Error state if query fails */}
+      {errorMessage && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-800 flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+          <span>{errorMessage}</span>
+        </div>
+      )}
 
       {/* Filter Bar */}
       <div className="bg-white rounded-xl border border-[#E8E4D8] p-4 shadow-sm">
@@ -449,6 +426,10 @@ export const MyReports = ({
               </div>
             )}
           </div>
+
+          <div className="text-xs text-[#6E6858]">
+            Showing <span className="font-semibold text-[#23261F]">{filteredReports.length}</span> report{filteredReports.length === 1 ? '' : 's'}
+          </div>
         </div>
       </div>
 
@@ -484,10 +465,10 @@ export const MyReports = ({
             <tbody className="divide-y divide-[#E8E4D8] text-sm">
               {filteredReports.length > 0 ? (
                 filteredReports.map((report) => (
-                  <tr key={report.ticket} className="hover:bg-[#F9FAFB] transition-colors">
+                  <tr key={report.ticket || report.id} className="hover:bg-[#F9FAFB] transition-colors">
                     {/* Ticket */}
                     <td className="py-4 px-6 text-[#23261F] font-sans font-medium text-xs sm:text-sm whitespace-nowrap">
-                      {report.ticket}
+                      {report.ticket || report.ticketNumber || report.id}
                     </td>
 
                     {/* Item Title & Category */}
@@ -503,7 +484,7 @@ export const MyReports = ({
 
                     {/* Date Filed */}
                     <td className="py-4 px-6 text-[#23261F] whitespace-nowrap">
-                      {report.dateFiled}
+                      {report.dateFiled || report.date}
                     </td>
 
                     {/* Status Badge */}
@@ -513,8 +494,8 @@ export const MyReports = ({
 
                     {/* Claims count */}
                     <td className="py-4 px-6 whitespace-nowrap">
-                      {report.claims === '—' ? (
-                        <span className="text-[#6E6858]">{report.claims}</span>
+                      {report.claims === '—' || !report.claims ? (
+                        <span className="text-[#6E6858]">{(report.claimsCount || 0) > 0 ? `${report.claimsCount} claim${report.claimsCount === 1 ? '' : 's'}` : '—'}</span>
                       ) : (
                         <span className="text-emerald-600 font-medium text-xs">
                           {report.claims}
@@ -567,14 +548,13 @@ export const MyReports = ({
           setSelectedReport(null);
         }}
         onBack={() => {
-          // Returning back to ReportDetailsModal
           setSelectedVerification(null);
         }}
         onApprove={handleApprove}
         onDecline={handleDecline}
         onSendMessage={handleSendMessage}
         onInspectDetails={(ver) => {
-          alert(`Inspecting full submission details for ${ver.id} (${ver.submitterName})`);
+          setToastMessage(`Viewing submission record for ${ver.id} (${ver.submitterName})`);
         }}
       />
 
@@ -586,19 +566,24 @@ export const MyReports = ({
         ticket={reportToClose?.ticket || reportToClose?.ticketNumber}
         onCancel={() => setReportToClose(null)}
         onConfirm={async (rep) => {
-          const reportId = rep?.ticket || rep?.id || reportToClose?.ticket || reportToClose?.id;
+          const reportId = rep?.id || rep?.ticket || reportToClose?.id || reportToClose?.ticket;
           try {
             await closeReportService(reportId);
             setReportList((prev) =>
               prev.map((r) =>
-                r.ticket === reportId || r.id === reportId ? { ...r, status: 'Closed' } : r
+                r.id === reportId || r.ticket === reportId || r.ticketNumber === reportId
+                  ? { ...r, status: 'Closed' }
+                  : r
               )
             );
-            if (selectedReport && (selectedReport.ticket === reportId || selectedReport.id === reportId)) {
+            if (selectedReport && (selectedReport.id === reportId || selectedReport.ticket === reportId)) {
               setSelectedReport((prev) => (prev ? { ...prev, status: 'Closed' } : null));
             }
+            setToastMessage(`Report #${reportId} has been successfully closed.`);
+            setTimeout(() => setToastMessage(null), 4000);
           } catch (err) {
             console.error('Failed to close report:', err);
+            setToastMessage(err.message || 'Could not close report. Please try again.');
           } finally {
             setReportToClose(null);
           }

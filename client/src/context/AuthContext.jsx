@@ -6,6 +6,8 @@ import {
   registerUser as registerUserService,
   logoutUser,
   sendPasswordReset,
+  verifyResetCode,
+  confirmNewPassword,
   updateUserProfile as updateUserProfileService,
   subscribeUserProfile,
   formatAuthError,
@@ -111,7 +113,32 @@ export function AuthProvider({ children }) {
   const resetPassword = async (email) => {
     setAuthError(null);
     try {
-      await sendPasswordReset(email);
+      const result = await sendPasswordReset(email);
+      return result;
+    } catch (err) {
+      const friendlyMessage = formatAuthError(err);
+      setAuthError(friendlyMessage);
+      throw new Error(friendlyMessage);
+    }
+  };
+
+  const verifyCode = async (actionCode) => {
+    setAuthError(null);
+    try {
+      const email = await verifyResetCode(actionCode);
+      return email;
+    } catch (err) {
+      const friendlyMessage = formatAuthError(err);
+      setAuthError(friendlyMessage);
+      throw new Error(friendlyMessage);
+    }
+  };
+
+  const confirmPassword = async (actionCode, newPassword) => {
+    setAuthError(null);
+    try {
+      const result = await confirmNewPassword(actionCode, newPassword);
+      return result;
     } catch (err) {
       const friendlyMessage = formatAuthError(err);
       setAuthError(friendlyMessage);
@@ -152,6 +179,8 @@ export function AuthProvider({ children }) {
     register,
     logout,
     resetPassword,
+    verifyCode,
+    confirmPassword,
     updateProfile,
   };
 

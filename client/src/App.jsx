@@ -6,7 +6,21 @@ import AdminMainForm from './components/AdminMainForm.jsx';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 
 function AppContent() {
-  const [currentView, setCurrentView] = useState('login');
+  const [resetCode, setResetCode] = useState(() => {
+    if (typeof window === 'undefined') return null;
+    const params = new URLSearchParams(window.location.search);
+    return params.get('mode') === 'resetPassword' ? params.get('oobCode') : null;
+  });
+
+  const [currentView, setCurrentView] = useState(() => {
+    if (typeof window === 'undefined') return 'login';
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('mode') === 'resetPassword' && params.get('oobCode')) {
+      return 'auth-flow';
+    }
+    return 'login';
+  });
+
   const {
     currentUser,
     userProfile,
@@ -17,6 +31,14 @@ function AppContent() {
     isSuspended,
     updateProfile,
   } = useAuth();
+
+  const handleNavigateToLogin = () => {
+    setCurrentView('login');
+    setResetCode(null);
+    if (typeof window !== 'undefined' && window.history?.replaceState) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  };
 
   // 1. Loading screen during session verification
   if (loading) {
@@ -66,7 +88,11 @@ function AppContent() {
         )}
 
         {currentView === 'auth-flow' && (
-          <AuthFlow onNavigateToLogin={() => setCurrentView('login')} />
+          <AuthFlow
+            initialStep={resetCode ? 'reset' : 'forgot'}
+            initialCode={resetCode}
+            onNavigateToLogin={handleNavigateToLogin}
+          />
         )}
       </div>
     );

@@ -12,13 +12,27 @@ export const ItemCard = ({ item, onClick, className = '' }) => {
       } ${className}`}
     >
       {/* Card Image and Floating Status Badges */}
-      <div className="relative aspect-[16/10] w-full overflow-hidden bg-slate-100">
-        <img
-          src={item.imageUrl}
-          alt={item.imageAlt || item.title}
-          loading="lazy"
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-        />
+      <div className="relative aspect-[16/10] w-full overflow-hidden bg-slate-100 flex items-center justify-center">
+        {item.imageUrl ? (
+          <img
+            src={item.imageUrl}
+            alt={item.imageAlt || item.title}
+            loading="lazy"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+              if (e.currentTarget.parentElement) {
+                e.currentTarget.parentElement.classList.add('bg-slate-100');
+              }
+            }}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          />
+        ) : (
+          <div className="flex flex-col items-center justify-center gap-1 text-slate-400 p-4 text-center select-none">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              {item.category || 'Item'}
+            </span>
+          </div>
+        )}
 
         {/* Top-Left: Type Badge (LOST / FOUND) */}
         <div className="absolute top-3 left-3 flex items-center">

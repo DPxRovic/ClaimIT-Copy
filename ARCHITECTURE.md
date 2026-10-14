@@ -241,6 +241,22 @@ interface ActivityLog {
 }
 ```
 
+### 3.8 Cloud Firestore Indexes & Search Architecture — [IMPLEMENTED]
+
+#### Composite Query Indexes (`firestore.indexes.json`)
+- `reports`: `status ASC`, `createdAt DESC` (Catalog browsing newest active listings)
+- `reports`: `type ASC`, `status ASC`, `createdAt DESC` (Catalog browsing filtered by LOST/FOUND)
+- `reports`: `category ASC`, `status ASC`, `createdAt DESC` (Catalog browsing filtered by category)
+- `reports`: `type ASC`, `category ASC`, `status ASC`, `createdAt DESC` (Combined category and type filters)
+- `reports`: `reporterUid ASC`, `createdAt DESC` (My Reports owner feed)
+- `reports`: `reporterUid ASC`, `status ASC`, `createdAt DESC` (My Reports owner feed with status filter)
+- `reports`: `status ASC`, `updatedAt DESC` (Recently resolved feed)
+
+#### Search Strategy & Limitations
+- **Firestore Constraints**: Cloud Firestore does not support native substring full-text queries (e.g. `contains("airpods")`). Native Firestore queries are exact match or prefix queries (`>=`, `<`).
+- **Implemented Architecture**: The application performs indexed queries for active listings with category/type filters and cursor pagination (`startAfter` / `limit`), then executes multi-field keyword filtering client-side across `title`, `category`, `location`, and `description`.
+- **Scalability Note**: For high-volume production deployments (>10,000 active documents), this architecture should be enhanced with an external search engine (such as Algolia, Typesense, or Firebase Extensions Search) to index reports without loading collections into memory.
+
 ---
 
 ## 5. Firebase Storage Organization

@@ -129,6 +129,21 @@ ClaimIt is a centralized web platform designed for university campuses to stream
 - **Soft-Close / Retirement**: A report creator can soft-close their active report, setting status to `'Closed'` with a recorded reason (e.g., item recovered independently).
 - **Deletion Integrity**: Ordinary users cannot hard-delete reports, ensuring claim history and campus safety records are not orphaned. Only administrators may permanently delete a listing from Firestore and clean up its Storage image.
 
+#### E. Report Browsing & Catalog — [IMPLEMENTED]
+- **Real-Time Data Source**: Connected directly to Cloud Firestore `reports` collection.
+- **Lost & Found Separation**: Filterable by `LOST`, `FOUND`, or `ALL`.
+- **Category Filter**: Filterable across campus categories (Electronics, Personal Items, Keys & Accessories, Books & Study Material, Apparel & Bags, IDs & Cards, Others).
+- **Sorting**: Options for Newest First (`createdAt desc`), Oldest First (`createdAt asc`), and Alphabetical (`title asc`).
+- **Pagination**: Bounded cursor and page calculations (8 items per page) preventing unbounded collection reads.
+- **Search Strategy**: Substring keyword filtering executed across title, category, location, and description fields. Since native Cloud Firestore does not provide unindexed arbitrary substring full-text search, the application queries active listings and filters matches client-side; future milestones or high-volume datasets may integrate a dedicated search index (e.g., Algolia or Typesense).
+- **Error Transparency**: Network or permission errors display a descriptive user-facing banner with a retry action, rather than silently substituting fake data.
+
+#### F. Owner Report Management — [IMPLEMENTED]
+- **My Reports Feed**: Authenticated users view their own filed reports via real-time Firestore synchronization (`reporterUid == currentUser.uid`).
+- **Status Filter**: User can filter their own reports by `All statuses`, `Active`, `Pending Match`, `Pending Claim`, `Resolved`, and `Closed`.
+- **Report Details View**: Modal inspection showing item title, ticket ID, category, date filed, location, description, image, and current verification entries.
+- **Soft-Close Retirement**: Owners can retire active reports via `CloseThisReportModal`, triggering `closeReportService` to update status to `Closed`.
+
 ---
 
 ### 3.3 Claim & Ownership Verification Workflow

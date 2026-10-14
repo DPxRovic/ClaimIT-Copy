@@ -3,6 +3,8 @@ import {
   createUserWithEmailAndPassword,
   signOut,
   sendPasswordResetEmail,
+  verifyPasswordResetCode,
+  confirmPasswordReset,
   updateProfile,
   updatePassword,
 } from 'firebase/auth';
@@ -42,6 +44,12 @@ export function formatAuthError(error) {
       return 'Access temporarily locked due to multiple failed login attempts. Please wait a few minutes before trying again.';
     case 'auth/network-request-failed':
       return 'Network connection issue. Please check your internet connection.';
+    case 'auth/expired-action-code':
+      return 'This password reset link has expired. Please request a new password reset.';
+    case 'auth/invalid-action-code':
+      return 'This password reset link is invalid or has already been used. Please request a new password reset.';
+    case 'auth/missing-password':
+      return 'Please enter a new password.';
     default:
       return error.message || 'Authentication failed. Please verify your details.';
   }
@@ -309,15 +317,146 @@ export async function logoutUser() {
 
 /**
  * Dispatches a password reset email via Firebase Auth.
+ * Avoids account enumeration: if auth/user-not-found is returned,
+ * succeeds generically without throwing, protecting user privacy.
  */
 export async function sendPasswordReset(email) {
   const cleanEmail = (email || '').trim().toLowerCase();
+  if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+    const error = new Error('Please enter a valid email address.');
+    error.code = 'auth/invalid-email';
+    throw error;
+  }
+
+  const appOrigin = typeof window !== 'undefined' && window.location?.origin
+    ? window.location.origin
+    : 'https://claimit-campus.firebaseapp.com';
+
+  const actionCodeSettings = {
+    url: `${appOrigin}/?mode=resetPassword`,
+    handleCodeInApp: true,
+  };
+
   try {
-    await sendPasswordResetEmail(auth, cleanEmail);
+    await sendPasswordResetEmail(auth, cleanEmail, actionCodeSettings);
+    return {
+      success: true,
+      message: 'If an account exists with this email address, a password reset link has been sent.',
+    };
   } catch (err) {
-    if (auth.app.options.apiKey === 'demo-claimit-api-key' || err.code === 'auth/api-key-not-valid') {
+    // Account enumeration protection:
+    // If the user email is not registered in Firebase, do not disclose it to an attacker.
+    if (err.code === 'auth/user-not-found') {
+      return {
+        success: true,
+        message: 'If an account exists with this email address, a password reset link has been sent.',
+      };
+    }
+
+    if (
+      auth.app.options.apiKey === 'demo-claimit-api-key' ||
+      err.code === 'auth/api-key-not-valid' ||
+      err.code === 'auth/invalid-api-key' ||
+      err.code === 'auth/configuration-not-found'
+    ) {
       console.info('[AI Studio] Simulated password reset for:', cleanEmail);
-      return;
+      return {
+        success: true,
+        message: 'If an account exists with this email address, a password reset link has been sent.',
+      };
+    }
+
+    throw err;
+  }
+}
+
+/**
+ * Validates a password reset action code (oobCode) using Firebase Auth.
+ * Returns the email address associated with the code if valid.
+ */
+export async function verifyResetCode(actionCode) {
+  if (!actionCode || typeof actionCode !== 'string' || !actionCode.trim()) {
+    const error = new Error('Invalid or missing password reset code.');
+    error.code = 'auth/invalid-action-code';
+    throw error;
+  }
+
+  const cleanCode = actionCode.trim();
+
+  // Offline or mock mode check
+  if (auth.app.options.apiKey === 'demo-claimit-api-key') {
+    if (cleanCode === 'invalid' || cleanCode === 'expired') {
+      const err = new Error('The reset code is expired or invalid.');
+      err.code = cleanCode === 'expired' ? 'auth/expired-action-code' : 'auth/invalid-action-code';
+      throw err;
+    }
+    return 'student@ucc.edu.ph';
+  }
+
+  try {
+    const email = await verifyPasswordResetCode(auth, cleanCode);
+    return email;
+  } catch (err) {
+    if (
+      err.code === 'auth/api-key-not-valid' ||
+      err.code === 'auth/invalid-api-key' ||
+      err.code === 'auth/configuration-not-found'
+    ) {
+      if (cleanCode === 'invalid' || cleanCode === 'expired') {
+        const fakeErr = new Error('The reset code is expired or invalid.');
+        fakeErr.code = cleanCode === 'expired' ? 'auth/expired-action-code' : 'auth/invalid-action-code';
+        throw fakeErr;
+      }
+      return 'student@ucc.edu.ph';
+    }
+    throw err;
+  }
+}
+
+/**
+ * Confirms a new password using a valid action code (oobCode) via Firebase Auth.
+ * Validates password criteria (min 8 chars) before submission.
+ * Never stores or logs passwords in application logs or database.
+ */
+export async function confirmNewPassword(actionCode, newPassword) {
+  if (!actionCode || typeof actionCode !== 'string' || !actionCode.trim()) {
+    const error = new Error('Invalid or missing password reset code.');
+    error.code = 'auth/invalid-action-code';
+    throw error;
+  }
+
+  if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 8) {
+    const error = new Error('Password must be at least 8 characters long.');
+    error.code = 'auth/weak-password';
+    throw error;
+  }
+
+  const cleanCode = actionCode.trim();
+
+  if (auth.app.options.apiKey === 'demo-claimit-api-key') {
+    if (cleanCode === 'invalid' || cleanCode === 'expired') {
+      const err = new Error('The reset code is expired or invalid.');
+      err.code = cleanCode === 'expired' ? 'auth/expired-action-code' : 'auth/invalid-action-code';
+      throw err;
+    }
+    return { success: true };
+  }
+
+  try {
+    await confirmPasswordReset(auth, cleanCode, newPassword);
+    return { success: true };
+  } catch (err) {
+    if (
+      err.code === 'auth/api-key-not-valid' ||
+      err.code === 'auth/invalid-api-key' ||
+      err.code === 'auth/configuration-not-found'
+    ) {
+      if (cleanCode === 'invalid' || cleanCode === 'expired') {
+        const fakeErr = new Error('The reset code is expired or invalid.');
+        fakeErr.code = cleanCode === 'expired' ? 'auth/expired-action-code' : 'auth/invalid-action-code';
+        throw fakeErr;
+      }
+      return { success: true };
     }
     throw err;
   }

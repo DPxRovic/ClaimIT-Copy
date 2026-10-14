@@ -197,6 +197,34 @@ interface ServiceErrorResponse {
 - **Behavior**: Deletes image file from Storage bucket if `imageStoragePath` is present; deletes Firestore document; logs to `activity_logs`.
 - **Response**: `{ success: true, reportId: string, message: string }`
 
+#### `fetchBrowseReports` (Client Query Service — [IMPLEMENTED])
+- **Description**: Queries active listings for the public Campus Directory.
+- **Parameters**:
+  ```typescript
+  interface BrowseQueryParams {
+    category?: string;       // Taxonomy category or 'ALL'
+    type?: 'LOST' | 'FOUND' | 'ALL';
+    sortBy?: 'NEWEST' | 'OLDEST' | 'TITLE_ASC';
+    pageSize?: number;       // Defaults to 8
+    lastDoc?: QueryDocumentSnapshot | null; // Pagination cursor
+  }
+  ```
+- **Firestore Constraints**:
+  - `status == 'Active'`
+  - Optional `type == type`
+  - Optional `category == category`
+  - `orderBy(createdAt | title)` with `limit(pageSize)` and `startAfter(lastDoc)`
+- **Response**: `{ items: ReportItem[], totalCount: number, hasMore: boolean, nextCursor: any }`
+
+#### `fetchUserReports` & `subscribeUserReports` (Client Service — [IMPLEMENTED])
+- **Description**: Queries or establishes a real-time listener for reports created by a specific user.
+- **Query Constraints**: `where('reporterUid', '==', uid)` with optional `where('status', '==', statusFilter)` and `orderBy('createdAt', 'desc')`.
+- **Response**: Array of normalized `ReportItem` objects.
+
+#### `fetchReportById` (Client Service — [IMPLEMENTED])
+- **Description**: Loads an individual report document by document ID.
+- **Behavior**: Retrieves `reports/{reportId}` via `getDoc`. Returns normalized `ReportItem` or `null` if not found. Throws descriptive error on network/permission failures.
+
 ---
 
 ### 3.3 Claim & Match Processing
