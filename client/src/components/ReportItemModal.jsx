@@ -1,5 +1,6 @@
 
 import React, { useEffect, useRef, useState } from 'react';
+import { createReportService } from '../firebase/reports.js';
 
 const getLocalDateString = () => {
   const today = new Date();
@@ -37,6 +38,7 @@ export default function ReportItemModal({
   const [selectedFileName, setSelectedFileName] = useState('');
   const [imagePreview, setImagePreview] = useState(null);
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fileInputRef = useRef(null);
 
@@ -134,7 +136,7 @@ export default function ReportItemModal({
     }
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
     setError('');
 
@@ -149,28 +151,40 @@ export default function ReportItemModal({
       return;
     }
 
-    const reportData = {
-      reportType,
-      itemName: itemName.trim(),
-      category,
-      date,
-      location: location.trim(),
-      description: description.trim(),
-      fileName: selectedFileName,
-      imageFile: selectedFile,
-      imagePreview,
-      createdAt: new Date().toISOString(),
-    };
+    setIsSubmitting(true);
 
-    if (typeof onSubmit !== 'function') {
-      setError('The report could not be submitted. Please try again.');
-      return;
+    try {
+      const reportPayload = {
+        reportType,
+        title: itemName.trim(),
+        itemName: itemName.trim(),
+        category,
+        date,
+        location: location.trim(),
+        description: description.trim(),
+        fileName: selectedFileName,
+        imageFile: selectedFile,
+        imagePreview,
+        createdAt: new Date().toISOString(),
+      };
+
+      const result = await createReportService(reportPayload);
+
+      if (typeof onSubmit === 'function') {
+        onSubmit({
+          ...reportPayload,
+          ...result,
+          reportId: result.ticketNumber || result.reportId,
+          ticketNumber: result.ticketNumber || result.reportId,
+          status: result.status || 'Active',
+        });
+      }
+    } catch (err) {
+      console.error('Report submission failed:', err);
+      setError(err.message || 'The report could not be submitted. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    // IMPORTANT:
-    // The parent component handles closing this modal
-    // and opening ReportSubmittedConfirmation.
-    onSubmit(reportData);
   };
 
   return (
@@ -551,9 +565,20 @@ export default function ReportItemModal({
 
             <button
               type="submit"
-              className="flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#5170FF] px-5 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-[#4362EA]"
+              disabled={isSubmitting}
+              className="flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#5170FF] px-5 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-[#4362EA] disabled:opacity-60 cursor-pointer"
             >
-              Submit Report
+              {isSubmitting ? (
+                <>
+                  <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                  </svg>
+                  <span>Submitting...</span>
+                </>
+              ) : (
+                'Submit Report'
+              )}
             </button>
           </div>
         </form>

@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowRight } from 'lucide-react';
 import ItemCard from './ItemCard.jsx';
+import { fetchRecentlyReported, fetchRecentlyResolved } from '../firebase/reports.js';
+import { BrowseItemDetailsModal } from './BrowseItemDetailsModal.jsx';
 
 const DEFAULT_RECENTLY_REPORTED = [
   {
@@ -13,8 +15,7 @@ const DEFAULT_RECENTLY_REPORTED = [
     location: 'Congress Campus - Library',
     imageUrl:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuBC_O6MmcQqb46ZGcyzeTfXUwjVOrcA7pt-7KkZ4WHcZdRPV7BZmYaaYd6mtsib7Sc6PZVjQGxu46ep5UehnPK10IavovbjmraJxe04mEOIPuQmCE6uPsEjssyArCGewkghdRPgbVII2ykI6a_n-9lkrEE458d3HGJAYOwGIOtU_Stv4dDE5uLL3YiKWreMnUdg1N5-VsDRVQPLfWys_sSuTWOJE7hyn7CaBvbVjRoC1oS9ZdKzcIJSUQ',
-    imageAlt:
-      'Apple AirPods Pro second generation with case resting on cloth surface.',
+    imageAlt: 'Apple AirPods Pro second generation with case resting on cloth surface.',
   },
   {
     id: 'hydro-flask-32oz',
@@ -26,8 +27,7 @@ const DEFAULT_RECENTLY_REPORTED = [
     location: 'Science Hall 104',
     imageUrl:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuC6tWbpguWrLQHmnQ5US7mPJsyaDaf1i1EtLNKM3N4SjSDL3GLeAwfJpAysAbXwT298AAVjM2m92xTZLqKMma1MaheYWENk6gglSc7ijOOAUY-CpIzLOk8NTedsZf2NX86uhT8oxy3k-Ar1RGkKAm53vMmMzRFNogKRF36lolbxkc8r4yKOkyHKeBvsvI0F73tb1EZTitfZPqBU57cGYthS87ANF3LRCHEsYKW2HZFk6zd_PQiX1-8g8w',
-    imageAlt:
-      'Hydro Flask bottle next to climbing rope and carabiners outdoors.',
+    imageAlt: 'Hydro Flask bottle next to climbing rope and carabiners outdoors.',
   },
   {
     id: 'keys-campus-lanyard',
@@ -39,8 +39,7 @@ const DEFAULT_RECENTLY_REPORTED = [
     location: 'Rec Center Lockers',
     imageUrl:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuD2pQgqAU8FBvHs78Vmf5dmzkB1BAGM-MYGXLH2Hgt_DbzhwdKIzHbTr6f7BYypkR0gI56j_BNeU6LD74vor4EwrCWRhCGz3H9ZgQaJJ-2AciSYE1zJhQSGezfdvwEPfPfuJO8ps7hCtTp7aBVZRDF0hECAP1gV9m1ix5yg76FBcegCvp84ANyJmitk0vtyakOAnvCmaGJHGFZzq1CIANoTkyl-0NPjmOeoPEGzMXV0uZnXX9osJDFnNw',
-    imageAlt:
-      'Keys attached to red campus strap and fob.',
+    imageAlt: 'Keys attached to red campus strap and fob.',
   },
   {
     id: 'calculus-textbook-9th',
@@ -52,8 +51,7 @@ const DEFAULT_RECENTLY_REPORTED = [
     location: 'Math & Science Bldg',
     imageUrl:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuAd-Q3IfZLJhrRk6SOdTvaKWt6ivPBXqkdK-2Ta6b2L0nuRL4JklkwR8Lu391niFdb2tAv4M7qemA5EiICfGNJ0bDgxqhpoYZ8QcLQNLsoiD862lol907_uXvKMQwz5o4FptAd01exC7K2j8wJj2ocJVYgvGDtQftNHARCy3MzR4fNQtnQbbeXNYet6UpxdBv_4i9bZ6jOwEPBL3rEo9cMZzawOwoUsJZCzqAxRHmDfAXaqN4gLux79_g',
-    imageAlt:
-      'Calculus Early Transcendentals hardcover textbook on a desk.',
+    imageAlt: 'Calculus Early Transcendentals hardcover textbook on a desk.',
   },
 ];
 
@@ -68,8 +66,7 @@ const DEFAULT_RECENTLY_RESOLVED = [
     location: 'Library 3rd Floor',
     imageUrl:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuCAULVMR8fNlyLIUxx6WBrHNN37i0AAoEgfKDzyZ4HzdND1KTUJQLMYemtvoTxX_D_AwQirC6i782wPmpEbP23267Tmy2QNS6eBkt6iu8algEnZ7DFuod_5fMMdWkBDMpkKiImiaKgmW0pJmr7WyHb9Rq_1aW0Q9bYrON4oqYm5j-U8Oq7XBGSEDV-GhjLBdIKE9NSmdaq2wUU5JuHWdKzYcZNP5qccx39s42-2tuw9i8nRHOchGui4bA',
-    imageAlt:
-      'Black Sony wireless headphones resting comfortably.',
+    imageAlt: 'Black Sony wireless headphones resting comfortably.',
   },
   {
     id: 'black-leather-wallet',
@@ -81,8 +78,7 @@ const DEFAULT_RECENTLY_RESOLVED = [
     location: 'Library Front Desk',
     imageUrl:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuCERDryOxxsewZHFZ_peWEfmLuoB7SbV9hy38LnUH474HsCCoEuZ9ZDjve1FiMPevRhRTK7ahcTnnv4IsidvjPNcYBUZZZo5dM8E7mdJow1mWJELVDrnJqf1ZT4Dv_xxlFWGYZlN18DOyhSS0JHxgONQcm4R2auBx8PCf5GiSthmZbISrgkx3SRnbv4S6mMRexNIX4pAINlXOODJRmeIiOOJB1TXfjZ8NCRe2Escodacliycd7CDSlLNQ',
-    imageAlt:
-      'Black grain leather bifold wallet on a table surface.',
+    imageAlt: 'Black grain leather bifold wallet on a table surface.',
   },
   {
     id: 'north-face-jacket',
@@ -94,8 +90,7 @@ const DEFAULT_RECENTLY_RESOLVED = [
     location: 'Student Union Info Desk',
     imageUrl:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuBRW-pbjHLqbjbsOXuj2JlZ34t2e5cnXaNiUSjMOV7BWQQ2i7zX3WNyd_LpVsstX0_UDd0nRzbSX1nXEPqSW4LeiV0TDpCKDaLdSUhdPdP6bmCG2MoVCuEulSSVPhjllFvMiK6s97F9lGz4nkZHvd8GdLuttc_e8IW1bataFbBGA-8VchgG9jnmRZiXsjzo9tMnjF3WKEbR1odgkWhhIIWpKb7CdsTvu2rTGWHNFtgfQJtcH3xNv_EvwA',
-    imageAlt:
-      'Waterproof hooded rain jacket folded with brand logo.',
+    imageAlt: 'Waterproof hooded rain jacket folded with brand logo.',
   },
   {
     id: 'hp-laptop-charger',
@@ -107,18 +102,73 @@ const DEFAULT_RECENTLY_RESOLVED = [
     location: 'Engineering Hall 204',
     imageUrl:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuCeousHM6qo8qNrC8f44Uo50n7WOJKJsBqKrMGzOJ_n4abz4dUg5knGGDNKCgM7FiT38jekNjbYF62J1XfOmRCw1FkJbHnFu7-J5P6pIJndaXR_GoFpAODhfWAVVUCwqBN0oReOS9hrQ7g3Zsq2Hv4qRbIzJCIu7EkliaKGSy_loIq1acZppOEr8F3qXQrxnshh32Zk2aKrtUoOlkISpm3WfqzoxX0sx7gJ-QMJmohAiwGs6Fcs4Yj9Fg',
-    imageAlt:
-      'Black laptop power adapter charger with cable.',
+    imageAlt: 'Black laptop power adapter charger with cable.',
   },
 ];
 
 export const Home = ({
-  recentlyReported = DEFAULT_RECENTLY_REPORTED,
-  recentlyResolved = DEFAULT_RECENTLY_RESOLVED,
+  recentlyReported: propRecentlyReported,
+  recentlyResolved: propRecentlyResolved,
   onBrowseAllClick,
   onItemClick,
   className = '',
 }) => {
+  const [reportedList, setReportedList] = useState(propRecentlyReported || DEFAULT_RECENTLY_REPORTED);
+  const [resolvedList, setResolvedList] = useState(propRecentlyResolved || DEFAULT_RECENTLY_RESOLVED);
+  const [selectedItem, setSelectedItem] = useState(null);
+
+  useEffect(() => {
+    if (propRecentlyReported) {
+      setReportedList(propRecentlyReported);
+      return;
+    }
+
+    let isMounted = true;
+    fetchRecentlyReported(4)
+      .then((items) => {
+        if (isMounted && items && items.length > 0) {
+          setReportedList(items);
+        }
+      })
+      .catch((err) => {
+        console.warn('Home fetchRecentlyReported error:', err);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [propRecentlyReported]);
+
+  useEffect(() => {
+    if (propRecentlyResolved) {
+      setResolvedList(propRecentlyResolved);
+      return;
+    }
+
+    let isMounted = true;
+    fetchRecentlyResolved(4)
+      .then((items) => {
+        if (isMounted && items && items.length > 0) {
+          setResolvedList(items);
+        }
+      })
+      .catch((err) => {
+        console.warn('Home fetchRecentlyResolved error:', err);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [propRecentlyResolved]);
+
+  const handleCardClick = (item) => {
+    if (onItemClick) {
+      onItemClick(item);
+    } else {
+      setSelectedItem(item);
+    }
+  };
+
   return (
     <div className={`flex flex-col gap-10 w-full ${className}`}>
       {/* Hero Banner */}
@@ -187,8 +237,8 @@ export const Home = ({
 
         {/* 4 Item Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {recentlyReported.map((item) => (
-            <ItemCard key={item.id} item={item} onClick={onItemClick} />
+          {reportedList.map((item) => (
+            <ItemCard key={item.id} item={item} onClick={handleCardClick} />
           ))}
         </div>
       </section>
@@ -209,11 +259,26 @@ export const Home = ({
 
         {/* 4 Item Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {recentlyResolved.map((item) => (
-            <ItemCard key={item.id} item={item} onClick={onItemClick} />
+          {resolvedList.map((item) => (
+            <ItemCard key={item.id} item={item} onClick={handleCardClick} />
           ))}
         </div>
       </section>
+
+      {/* Item Details Modal when clicked directly from Home page */}
+      {selectedItem && (
+        <BrowseItemDetailsModal
+          isOpen={Boolean(selectedItem)}
+          item={selectedItem}
+          onClose={() => setSelectedItem(null)}
+          onOpenAction={() => {
+            setSelectedItem(null);
+            if (onBrowseAllClick) {
+              onBrowseAllClick();
+            }
+          }}
+        />
+      )}
     </div>
   );
 };

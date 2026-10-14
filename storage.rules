@@ -1,0 +1,79 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // -------------------------------------------------------------------------
+    // Storage Authorization & Validation Helpers
+    // -------------------------------------------------------------------------
+
+    function isAuthenticated() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (request.auth.token.role == 'admin' || request.auth.token.role == 'Admin');
+    }
+
+    function isImage() {
+      return request.resource != null &&
+        request.resource.contentType.matches('image/(jpeg|png|webp)');
+    }
+
+    function isUnderMaxSize(maxMegabytes) {
+      return request.resource != null &&
+        request.resource.size <= maxMegabytes * 1024 * 1024;
+    }
+
+    // -------------------------------------------------------------------------
+    // Default Deny: All unspecified storage paths are strictly denied
+    // -------------------------------------------------------------------------
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // User Avatars: avatars/{userId}/{fileName}
+    // -------------------------------------------------------------------------
+    // Read: Authenticated campus members can view user profile avatars.
+    // Write: Users can upload and replace only their own avatar (<= 5MB, image only).
+    // Delete: Owner or administrator.
+    // -------------------------------------------------------------------------
+    match /avatars/{userId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId) && isImage() && isUnderMaxSize(5);
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    // -------------------------------------------------------------------------
+    // Item Photographs: reports/{reportId}/{fileName}
+    // -------------------------------------------------------------------------
+    // Read: Authenticated users can view photos attached to campus listings.
+    // Write: Authenticated active users can upload item images (<= 10MB, JPEG/PNG/WebP).
+    // Delete: Report image owner or administrator.
+    // -------------------------------------------------------------------------
+    match /reports/{reportId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isActiveUser() && isImage() && isUnderMaxSize(10);
+      allow delete: if isAuthenticated() && (isAdmin() || (resource != null && resource.metadata.uploaderUid == request.auth.uid));
+    }
+
+    // -------------------------------------------------------------------------
+    // Claim Evidence Attachments: claims/{claimId}/{fileName}
+    // -------------------------------------------------------------------------
+    // Privacy Requirement: Evidence (receipts, serial numbers, intimate photos)
+    // must NEVER be publicly readable or accessible to unrelated users.
+    // Access is managed via authenticated backend verification and signed URLs.
+    // Direct client reads and writes are denied by default.
+    // -------------------------------------------------------------------------
+    match /claims/{claimId}/{fileName} {
+      allow read: if false;
+      allow write: if false;
+    }
+  }
+}

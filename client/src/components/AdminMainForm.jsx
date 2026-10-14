@@ -52,6 +52,7 @@ const NAV_ITEMS = [
 export default function AdminMainForm({
   currentPath = 'manage-lists',
   onNavigate = () => {},
+  onLogout,
   initialUser = {
     name: 'Sabrina Carpenter',
     email: 'sabrina@gmail.com',
@@ -121,7 +122,9 @@ export default function AdminMainForm({
 
   const handleLogout = () => {
     setIsProfileModalOpen(false);
-    alert('Logged out successfully.');
+    if (onLogout) {
+      onLogout();
+    }
   };
 
   // Display the selected page, or a clean fallback if not yet implemented

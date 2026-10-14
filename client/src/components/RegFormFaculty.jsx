@@ -23,7 +23,7 @@ export default function RegFormFaculty({ onLogin, onSwitchToStudent, onSubmit })
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [imageError, setImageError] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!fullName.trim()) {
@@ -68,12 +68,15 @@ export default function RegFormFaculty({ onLogin, onSwitchToStudent, onSubmit })
       password,
     };
 
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
       if (onSubmit) {
-        onSubmit(formData);
+        await onSubmit(formData);
       }
-    }, 800);
+    } catch (err) {
+      setErrorMessage(err.message || 'Registration failed. Please verify your details.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (

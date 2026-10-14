@@ -76,12 +76,27 @@ export const BrowseItemDetailsModal = ({
         </div>
 
         {/* Big Item Picture */}
-        <div className="mt-3.5 w-full h-52 sm:h-56 rounded-2xl overflow-hidden bg-slate-100 border border-slate-100/80 shadow-inner">
-          <img
-            src={item.imageUrl}
-            alt={item.imageAlt || item.title}
-            className="w-full h-full object-cover"
-          />
+        <div className="mt-3.5 w-full h-52 sm:h-56 rounded-2xl overflow-hidden bg-slate-100 border border-slate-100/80 shadow-inner flex items-center justify-center">
+          {item.imageUrl ? (
+            <img
+              src={item.imageUrl}
+              alt={item.imageAlt || item.title}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+                if (e.currentTarget.parentElement) {
+                  e.currentTarget.parentElement.classList.add('bg-slate-50');
+                }
+              }}
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center gap-2 text-slate-400 p-6 text-center">
+              <span className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                {item.category || 'Item'} Photo
+              </span>
+              <p className="text-xs text-slate-400">No photograph attached by reporter</p>
+            </div>
+          )}
         </div>
 
         {/* Title & Listing Eyebrow / Reported Time */}

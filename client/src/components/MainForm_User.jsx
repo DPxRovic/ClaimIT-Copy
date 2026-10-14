@@ -11,7 +11,6 @@ import ReportItemModal from './ReportItemModal.jsx';
 import ReportSubmittedConfirmation from './ReportSubmittedConfirmation.jsx';
 import { UserProfileModal } from './UserProfileModal.jsx';
 import LogoutConfirmation from './LogoutConfirmation.jsx';
-import Notifications from './Notifications.jsx';
 
 import HomePage from './Home.jsx';
 
@@ -39,6 +38,8 @@ export default function MainForm_User({
   onProfileSettings,
   onLogout,
   user,
+  onSaveProfile,
+  onSaveAccount,
 }) {
   // Default page.
   const [currentTab, setCurrentTab] = useState('home');
@@ -56,6 +57,7 @@ export default function MainForm_User({
 
   // Stores the details of the most recently submitted report.
   const [submittedReport, setSubmittedReport] = useState(null);
+  const [createdReports, setCreatedReports] = useState([]);
 
   const profileRef = useRef(null);
   const notificationRef = useRef(null);
@@ -76,35 +78,16 @@ export default function MainForm_User({
       ) {
         setIsProfileModalOpen(false);
       }
-      if (
-        notificationRef.current &&
-        !notificationRef.current.contains(e.target)
-      ) {
-        setIsNotificationOpen(false);
-      }
     };
 
-    if (isProfileModalOpen || isNotificationOpen) {
+    if (isProfileModalOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isProfileModalOpen, isNotificationOpen]);
-
-  // Notifications action handlers
-  const handleMarkAllNotificationsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
-  };
-
-  const handleMarkNotificationAsRead = (id) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, unread: false } : n))
-    );
-  };
-
-  const unreadCount = notifications.filter((n) => n.unread).length;
+  }, [isProfileModalOpen]);
 
   // Handle navbar navigation.
   const handleTabClick = (event, path) => {
@@ -136,22 +119,30 @@ export default function MainForm_User({
 
   // Submit report and show the confirmation modal.
   const handleModalSubmit = (reportData) => {
-    // Generate a demonstration report ID.
-    // Replace this with the ID returned by your backend when connected.
-    const reportId = `R-${String(Date.now()).slice(-6)}`;
+    const reportId = reportData.ticketNumber || reportData.reportId || `R-${String(Date.now()).slice(-4)}`;
 
-    const newReport = {
+    const formattedReport = {
       ...reportData,
       reportId,
+      ticket: reportId,
+      ticketNumber: reportId,
+      title: reportData.title || reportData.itemName || 'Reported Item',
+      type: (reportData.type || reportData.reportType || 'lost').toUpperCase(),
+      status: reportData.status || 'Active',
+      dateFiled: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
+      claims: '—',
+      entries: [],
+      imageUrl: reportData.imageUrl || reportData.imagePreview || null,
+      location: reportData.location || '',
+      description: reportData.description || '',
     };
 
-    setSubmittedReport(newReport);
+    setSubmittedReport(formattedReport);
+    setCreatedReports((prev) => [formattedReport, ...prev]);
 
     // Close the form first, then show the confirmation.
     setIsReportModalOpen(false);
     setIsReportConfirmationOpen(true);
-
-    console.log('Report submitted:', newReport);
   };
 
   // Close Report Submitted confirmation.
@@ -237,7 +228,7 @@ export default function MainForm_User({
       case 'my-reports':
         return (
           <Suspense fallback={<PageLoading label="My Reports" />}>
-            <MyReports />
+            <MyReports userReports={createdReports} />
           </Suspense>
         );
 
@@ -255,7 +246,12 @@ export default function MainForm_User({
               <PageLoading label="Profile & Settings" />
             }
           >
-            <ProfileSettings />
+            <ProfileSettings
+              initialUser={user}
+              onSaveProfile={onSaveProfile}
+              onSaveAccount={onSaveAccount}
+              onLogout={onLogout}
+            />
           </Suspense>
         );
 

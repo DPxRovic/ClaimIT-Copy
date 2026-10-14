@@ -1,0 +1,105 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile document containing authentication and role details",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique user ID" },
+        "fullName": { "type": "string", "description": "Full legal name" },
+        "email": { "type": "string", "description": "Institutional or personal email" },
+        "role": { "type": "string", "enum": ["student", "faculty", "admin"], "description": "Campus community role" },
+        "status": { "type": "string", "enum": ["active", "pending_approval", "declined", "suspended"], "description": "Account status" },
+        "studentId": { "type": "string", "description": "Student school ID" },
+        "program": { "type": "string", "description": "Academic program or course" },
+        "yearLevel": { "type": "string", "description": "Year level" },
+        "section": { "type": "string", "description": "Section code" },
+        "facultyId": { "type": "string", "description": "Faculty staff ID" },
+        "department": { "type": "string", "description": "Faculty department" },
+        "avatarUrl": { "type": "string", "description": "Profile picture URL" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Account creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last profile update timestamp" }
+      },
+      "required": ["uid", "fullName", "email", "role", "status"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "Lost or found item report",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique report document ID" },
+        "ticketNumber": { "type": "string", "description": "Unique tracking ticket identifier" },
+        "title": { "type": "string", "minLength": 2, "maxLength": 120, "description": "Title or name of the item" },
+        "category": { "type": "string", "minLength": 2, "maxLength": 64, "description": "Item category" },
+        "type": { "type": "string", "enum": ["LOST", "FOUND"], "description": "Report classification" },
+        "status": { "type": "string", "enum": ["Active", "Pending Match", "Pending Claim", "Resolved", "Closed", "Withdrawn"], "description": "Report lifecycle status" },
+        "date": { "type": "string", "description": "Date lost or found (YYYY-MM-DD)" },
+        "location": { "type": "string", "minLength": 2, "maxLength": 200, "description": "Campus location where item was lost or found" },
+        "description": { "type": "string", "minLength": 5, "maxLength": 2000, "description": "Detailed physical description and distinguishing marks" },
+        "imageUrl": { "type": "string", "description": "Public download URL for attached item image" },
+        "imageStoragePath": { "type": "string", "description": "Cloud Storage path to uploaded photograph" },
+        "reporterUid": { "type": "string", "description": "UID of the reporting campus member" },
+        "reporterName": { "type": "string", "description": "Display name of reporter" },
+        "reporterRole": { "type": "string", "description": "Community role of reporter" },
+        "reporterProgramOrDept": { "type": "string", "description": "Academic program or department" },
+        "claimsCount": { "type": "number", "description": "Number of submitted claims/matches" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last update timestamp" },
+        "closedAt": { "type": "string", "format": "date-time", "description": "Timestamp when report was closed" },
+        "closedBy": { "type": "string", "description": "UID of user who closed the report" },
+        "closeReason": { "type": "string", "description": "Reason report was closed" }
+      },
+      "required": ["title", "category", "type", "status", "date", "location", "description", "reporterUid"]
+    },
+    "Claim": {
+      "title": "Claim",
+      "description": "Claim or match verification entry on a report",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique claim identifier" },
+        "reportId": { "type": "string", "description": "Parent report identifier" },
+        "claimantUid": { "type": "string", "description": "UID of claimant" },
+        "claimantName": { "type": "string", "description": "Name of claimant" },
+        "status": { "type": "string", "enum": ["Pending", "Approved", "Declined", "Withdrawn"], "description": "Claim status" },
+        "message": { "type": "string", "description": "Verification statement or proof" },
+        "evidenceImageUrl": { "type": "string", "description": "URL of private verification evidence" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Claim submission timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last claim status change timestamp" }
+      },
+      "required": ["reportId", "claimantUid", "status", "message"]
+    },
+    "ActivityLog": {
+      "title": "ActivityLog",
+      "description": "Administrative audit trail entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Log record ID" },
+        "actorUid": { "type": "string", "description": "User who initiated the action" },
+        "action": { "type": "string", "description": "Action performed" },
+        "targetType": { "type": "string", "description": "Target entity type" },
+        "targetId": { "type": "string", "description": "Target entity ID" },
+        "details": { "type": "string", "description": "Detailed log message" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "Action timestamp" }
+      },
+      "required": ["actorUid", "action", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents indexed by user UID"
+    },
+    "/reports/{reportId}": {
+      "schema": "Report",
+      "description": "Lost and found reports catalog"
+    },
+    "/reports/{reportId}/claims/{claimId}": {
+      "schema": "Claim",
+      "description": "Claims subcollection submitted for specific reports"
+    },
+    "/activity_logs/{logId}": {
+      "schema": "ActivityLog",
+      "description": "System audit and activity logs"
+    }
+  }
+}

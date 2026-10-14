@@ -1,12 +1,36 @@
 import React, { useState } from 'react';
-import ForgotPassword from './ForgotPassword';
-import VerifyCode from './VerifyCode';
-import ResetPassword from './ResetPassword';
-import PasswordResetSuccess from './PasswordResetSuccess';
+import ForgotPassword from './ForgotPassword.jsx';
+import VerifyCode from './VerifyCode.jsx';
+import ResetPassword from './ResetPassword.jsx';
+import PasswordResetSuccess from './PasswordResetSuccess.jsx';
 
-export default function AuthFlow({ onNavigateToLogin }) {
-  const [currentStep, setCurrentStep] = useState('forgot');
+/**
+ * AuthFlow manages the account recovery and password reset screens.
+ * Supports both link-based reset (Firebase action links) and manual code entry.
+ *
+ * @param {Object} props
+ * @param {() => void} props.onNavigateToLogin
+ * @param {'forgot' | 'verify' | 'reset' | 'success'} [props.initialStep='forgot']
+ * @param {string|null} [props.initialCode=null] - Action code from URL parameter
+ */
+export default function AuthFlow({
+  onNavigateToLogin,
+  initialStep = 'forgot',
+  initialCode = null,
+}) {
+  const [currentStep, setCurrentStep] = useState(initialStep);
   const [userEmail, setUserEmail] = useState('');
+  const [activeActionCode, setActiveActionCode] = useState(initialCode);
+
+  const handleProceedToCode = (email) => {
+    setUserEmail(email);
+    setCurrentStep('verify');
+  };
+
+  const handleCodeVerified = (code) => {
+    setActiveActionCode(code);
+    setCurrentStep('reset');
+  };
 
   return (
     <div>
@@ -14,25 +38,24 @@ export default function AuthFlow({ onNavigateToLogin }) {
       {currentStep === 'forgot' && (
         <ForgotPassword
           onBackToLogin={onNavigateToLogin}
-          onProceedToCode={(email) => {
-            setUserEmail(email);
-            setCurrentStep('verify');
-          }}
+          onProceedToCode={handleProceedToCode}
         />
       )}
 
-      {/* Step 2: Verification Code Input */}
+      {/* Step 2: Verification Code Input (Fallback for manual code entry) */}
       {currentStep === 'verify' && (
         <VerifyCode
           email={userEmail}
           onBackToLogin={onNavigateToLogin}
-          onCodeVerified={() => setCurrentStep('reset')}
+          onCodeVerified={handleCodeVerified}
         />
       )}
 
-      {/* Step 3: Set New Password */}
+      {/* Step 3: Set New Password (Firebase verifyPasswordResetCode & confirmPasswordReset) */}
       {currentStep === 'reset' && (
         <ResetPassword
+          actionCode={activeActionCode}
+          email={userEmail}
           onSuccess={() => setCurrentStep('success')}
           onCancel={onNavigateToLogin}
         />
