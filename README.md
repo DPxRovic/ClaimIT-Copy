@@ -126,8 +126,8 @@ ClaimIt follows a disciplined 10-milestone backend development plan:
 - [x] **Milestone 2**: Backend Tooling, Firebase Project Setup, Local Emulator Suite Configuration, and Client/Server SDK Initialization.
 - [x] **Milestone 3**: Firebase Authentication, Registration, and Role-Based Access Control (Custom Claims).
 - [x] **Milestone 4**: Roles, Authorization, and Firebase Security Rules (`firestore.rules`, `storage.rules`, `auth-guards.ts`, `provision-admin.js`).
-- [ ] **Milestone 5**: Firebase Storage Configuration and File Upload Rules (`storage.rules`).
-- [ ] **Milestone 6**: Reports Lifecycle Implementation (Create, Browse, Search, Filter, Details).
+- [x] **Milestone 5**: Lost & Found Report Creation Backend, Storage Image Uploads, Lifecycle Rules, and Client Form Integration (`createReport`, `updateReport`, `closeReport`, `deleteReport`).
+- [ ] **Milestone 6**: Reports Catalog & Browse (Full Browse, Search, Category Filter, and Real-Time Listeners).
 - [ ] **Milestone 7**: Claims & Ownership Verification Implementation with Cloud Functions.
 - [ ] **Milestone 8**: Real-Time Direct Messaging and Notifications Integration.
 - [ ] **Milestone 9**: Admin Dashboard, User Management, Taxonomy Lists, and Activity Logging.
@@ -138,6 +138,7 @@ ClaimIt follows a disciplined 10-milestone backend development plan:
 ## 8. Current Limitations & Known State
 
 1. **Authentication & User Profiles Active**: Firebase Authentication, `AuthContext`, session persistence across reloads, protected field validation, and Firestore `users/{uid}` profiles are implemented.
-2. **Offline Emulators Ready**: Auth, Firestore, Functions, and Storage are configured in `firebase.json` for offline development.
-3. **Domain Collections Pending**: Report creation, claim submission, direct messaging, and admin listing operations will be connected to Firestore progressively in Milestones 4 through 9.
-4. **No Automated AI Matching**: Lost-and-found matches are submitted manually by users against existing listings.
+2. **Report Creation & Storage Uploads Active (Milestone 5)**: Lost and Found reports are created with server-assigned ticket IDs, verified creator UID, initial 'Active' status, and Storage image integration with 10MB bounds.
+3. **Soft-Close & Administration Rules**: Report creators can soft-close their own reports; hard deletions are restricted to administrators.
+4. **Claims & Verification Pending (Milestone 7)**: Claims submission and two-way verification workflows remain closed at the Security Rules boundary until Prompt 7.
+5. **No Automated AI Matching**: Lost-and-found matches are submitted manually by campus members against existing listings.

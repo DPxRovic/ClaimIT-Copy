@@ -54,11 +54,13 @@ service firebase.storage {
     // Item Photographs: reports/{reportId}/{fileName}
     // -------------------------------------------------------------------------
     // Read: Authenticated users can view photos attached to campus listings.
-    // Write: Denied from client in Prompt 4. Connected in Prompt 5/6.
+    // Write: Authenticated active users can upload item images (<= 10MB, JPEG/PNG/WebP).
+    // Delete: Report image owner or administrator.
     // -------------------------------------------------------------------------
     match /reports/{reportId}/{fileName} {
       allow read: if isAuthenticated();
-      allow write: if false;
+      allow write: if isAuthenticated() && isActiveUser() && isImage() && isUnderMaxSize(10);
+      allow delete: if isAuthenticated() && (isAdmin() || (resource != null && resource.metadata.uploaderUid == request.auth.uid));
     }
 
     // -------------------------------------------------------------------------

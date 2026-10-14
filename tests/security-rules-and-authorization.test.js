@@ -78,7 +78,50 @@ function evalFirestoreRules({ path, op, auth, resource, requestResource }) {
   const reportsMatch = path.match(/^\/reports\/([^/]+)$/);
   if (reportsMatch) {
     if (op === 'read') return isAuthenticated;
-    return false; // Writes denied in Milestone 4
+
+    const isActive = Boolean(
+      isAuthenticated &&
+      auth.token &&
+      (auth.token.status === 'active' || auth.token.status === 'Active')
+    );
+
+    if (op === 'create') {
+      if (!isAuthenticated || !isActive) return false;
+      if (!requestResource || requestResource.reporterUid !== auth.uid) return false;
+      if (!['LOST', 'FOUND', 'lost', 'found'].includes(requestResource.type)) return false;
+      if (requestResource.status !== 'Active') return false;
+      if (requestResource.claimsCount !== 0) return false;
+      if (!isValidString(requestResource.title, 2, 120)) return false;
+      if (!isValidString(requestResource.category, 2, 64)) return false;
+      if (!isValidString(requestResource.location, 2, 200)) return false;
+      if (!isValidString(requestResource.description, 5, 2000)) return false;
+      if (!isValidString(requestResource.date, 10, 10)) return false;
+      return true;
+    }
+
+    if (op === 'update') {
+      if (isAdmin) return true;
+      if (!resource || !requestResource) return false;
+      if (!isOwner(resource.reporterUid)) return false;
+
+      const changedKeys = Object.keys(requestResource).filter((k) => requestResource[k] !== resource[k]);
+      const immutableKeys = ['reporterUid', 'type', 'ticketNumber', 'createdAt', 'claimsCount'];
+      if (changedKeys.some((k) => immutableKeys.includes(k))) return false;
+
+      const allowedContent = ['title', 'category', 'date', 'location', 'description', 'imageUrl', 'imageStoragePath', 'updatedAt'];
+      const allowedClose = ['status', 'closedAt', 'closedBy', 'closeReason', 'updatedAt'];
+
+      const isContentEdit = changedKeys.every((k) => allowedContent.includes(k));
+      const isSoftClose = changedKeys.every((k) => allowedClose.includes(k)) && ['Closed', 'Withdrawn'].includes(requestResource.status);
+
+      return isContentEdit || isSoftClose;
+    }
+
+    if (op === 'delete') {
+      return isAdmin;
+    }
+
+    return false;
   }
 
   // 3. reports/{reportId}/claims/{claimId}
@@ -155,7 +198,24 @@ function evalStorageRules({ path, op, auth, requestResource }) {
   const reportPhotoMatch = path.match(/^\/reports\/([^/]+)\/([^/]+)$/);
   if (reportPhotoMatch) {
     if (op === 'read') return isAuthenticated;
-    return false; // Writes denied in Prompt 4
+    const isActive = Boolean(
+      isAuthenticated &&
+      auth.token &&
+      (auth.token.status === 'active' || auth.token.status === 'Active')
+    );
+    if (op === 'write') {
+      return (
+        isAuthenticated &&
+        isActive &&
+        requestResource &&
+        isImage(requestResource.contentType) &&
+        isUnderMax(requestResource.size, 10)
+      );
+    }
+    if (op === 'delete') {
+      return isAdmin || (isAuthenticated && resource && resource.metadata && resource.metadata.uploaderUid === auth.uid);
+    }
+    return false;
   }
 
   // claims/{claimId}/{fileName}

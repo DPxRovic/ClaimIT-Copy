@@ -27,3 +27,6 @@ export const healthCheck = onCall(async (_request: CallableRequest) => {
 export { registerUser } from './modules/auth.js';
 export { manageAccountStatus, setAdminRole } from './modules/admin.js';
 
+// Report lifecycle functions
+export { createReport, updateReport, closeReport, deleteReport } from './modules/reports.js';
+

@@ -97,23 +97,37 @@ ClaimIt is a centralized web platform designed for university campuses to stream
 1. **LOST**: The reporter misplaced an item and is seeking its recovery.
 2. **FOUND**: The reporter found an item and is holding it or has deposited it at a campus security desk.
 
-#### B. Report Creation
+#### B. Report Creation — [IMPLEMENTED]
 - **Fields**:
-  - `reportType`: `'lost'` or `'found'`.
-  - `itemName`: Title of the item (e.g., "Apple AirPods Pro (2nd Gen)").
-  - `category`: Taxonomy reference (e.g., Electronics, Personal Items, Keys & Accessories).
-  - `date`: Date item was lost or found (defaults to local today; cannot be in the future).
-  - `location`: Specific campus building or landmark (e.g., "Congress Campus - Library 3rd Floor").
-  - `description`: Detailed physical description, distinguishing features, marks.
-  - `imageFile`: Optional photo upload (PNG, JPG, WebP; maximum 10MB).
-- **Generated Identifier**: Unique ticket number formatted as `R-xxxx` or `#CLM-xxxx`.
+  - `reportType` / `type`: Normalized to `'LOST'` or `'FOUND'`.
+  - `title` / `itemName`: Item name or title (required string, 2–120 characters).
+  - `category`: Taxonomy reference (required string, e.g. Electronics, Personal Items, Keys & Accessories).
+  - `date`: Date item was lost or found (YYYY-MM-DD; cannot be in the future).
+  - `location`: Specific campus landmark or room (required string, 2–200 characters).
+  - `description`: Detailed physical description, distinguishing marks, stickers (required string, 5–2000 characters).
+  - `imageUrl`: Optional download URL from Firebase Storage.
+  - `imageStoragePath`: Optional storage reference path (`reports/{reportId}/{fileName}`).
+- **Server-Assigned Fields**:
+  - `reporterUid`: Verified `request.auth.uid` from authenticated token (cannot be client-spoofed).
+  - `reporterName`: Derived from user profile in Firestore.
+  - `reporterRole`: Derived from authenticated account role ('Student' | 'Faculty' | 'Admin').
+  - `reporterProgramOrDept`: Derived from user academic program or department.
+  - `ticketNumber`: Generated unique display code formatted as `R-xxxx` (e.g., `R-1072`).
+  - `status`: Initialized to `'Active'`.
+  - `claimsCount`: Initialized to `0`.
+  - `createdAt` & `updatedAt`: Server-controlled Firestore timestamps.
 
-#### C. Report Status Machine
-- `Active`: Newly published listing visible in Browse Items.
-- `Pending Claim`: A FOUND item has at least one active ownership claim under review.
-- `Pending Match`: A LOST item has at least one matching found report under review.
-- `Resolved`: Item has been successfully verified, returned, and handed over.
-- `Closed` / `Withdrawn`: Listing withdrawn by reporter or closed by administrator.
+#### C. Report Status Machine — [IMPLEMENTED]
+- `Active`: Newly published listing visible in Browse Items and My Reports.
+- `Pending Claim`: A FOUND item has at least one active ownership claim under review (Prompt 7).
+- `Pending Match`: A LOST item has at least one matching found report under review (Prompt 7).
+- `Resolved`: Item has been successfully verified, returned, and handed over (Prompt 7).
+- `Closed` / `Withdrawn`: Listing retired by the reporter (via `CloseThisReportModal`) or closed by an administrator. Permanently removed from active browse catalog while preserving audit history.
+
+#### D. Edit & Deletion Rules — [IMPLEMENTED]
+- **Creator Edit Authority**: A report creator can only edit permitted content fields (`title`, `category`, `date`, `location`, `description`, `imageUrl`, `imageStoragePath`). They cannot alter `reporterUid`, `ticketNumber`, `type`, `createdAt`, or `claimsCount`.
+- **Soft-Close / Retirement**: A report creator can soft-close their active report, setting status to `'Closed'` with a recorded reason (e.g., item recovered independently).
+- **Deletion Integrity**: Ordinary users cannot hard-delete reports, ensuring claim history and campus safety records are not orphaned. Only administrators may permanently delete a listing from Firestore and clean up its Storage image.
 
 ---
 

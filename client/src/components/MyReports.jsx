@@ -1,7 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
 import ReportDetailsModal from './ReportDetailsModal.jsx';
 import ClaimMatchVerificationModal from './ClaimMatchVerificationModal.jsx';
+import CloseThisReportModal from './CloseThisReportModal.jsx';
+import { closeReportService } from '../firebase/reports.js';
 
 export const DEFAULT_REPORTS = [
   {
@@ -252,15 +254,31 @@ export const DEFAULT_REPORTS = [
  * MyReports Component with built-in modal verification flow
  */
 export const MyReports = ({
-  reports = DEFAULT_REPORTS,
+  reports: propReports,
+  userReports = [],
   className = '',
 }) => {
+  const initialData = useMemo(() => {
+    if (propReports) return propReports;
+    return [...userReports, ...DEFAULT_REPORTS];
+  }, [propReports, userReports]);
+
+  const [reportList, setReportList] = useState(initialData);
   const [selectedStatus, setSelectedStatus] = useState('All statuses');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   // Modal Flow States
   const [selectedReport, setSelectedReport] = useState(null);
   const [selectedVerification, setSelectedVerification] = useState(null);
+  const [reportToClose, setReportToClose] = useState(null);
+
+  useEffect(() => {
+    if (propReports) {
+      setReportList(propReports);
+    } else {
+      setReportList([...userReports, ...DEFAULT_REPORTS]);
+    }
+  }, [propReports, userReports]);
 
   const statusOptions = [
     'All statuses',
@@ -273,10 +291,10 @@ export const MyReports = ({
 
   const filteredReports = useMemo(() => {
     if (selectedStatus === 'All statuses') {
-      return reports;
+      return reportList;
     }
-    return reports.filter((report) => report.status === selectedStatus);
-  }, [reports, selectedStatus]);
+    return reportList.filter((report) => report.status === selectedStatus);
+  }, [reportList, selectedStatus]);
 
   const handleOpenReport = (report) => {
     setSelectedReport(report);
@@ -532,8 +550,10 @@ export const MyReports = ({
 
       {/* 1. Report Details Modal */}
       <ReportDetailsModal
-        isOpen={Boolean(selectedReport) && !selectedVerification}
+        isOpen={Boolean(selectedReport) && !selectedVerification && !reportToClose}
         report={selectedReport}
+        canCloseReport={selectedReport?.status === 'Active'}
+        onCloseReport={(rep) => setReportToClose(rep)}
         onClose={() => setSelectedReport(null)}
         onViewClaimOrMatch={handleOpenVerification}
       />
@@ -555,6 +575,33 @@ export const MyReports = ({
         onSendMessage={handleSendMessage}
         onInspectDetails={(ver) => {
           alert(`Inspecting full submission details for ${ver.id} (${ver.submitterName})`);
+        }}
+      />
+
+      {/* 3. Close This Report Modal */}
+      <CloseThisReportModal
+        isOpen={Boolean(reportToClose)}
+        report={reportToClose}
+        itemTitle={reportToClose?.title || reportToClose?.itemName}
+        ticket={reportToClose?.ticket || reportToClose?.ticketNumber}
+        onCancel={() => setReportToClose(null)}
+        onConfirm={async (rep) => {
+          const reportId = rep?.ticket || rep?.id || reportToClose?.ticket || reportToClose?.id;
+          try {
+            await closeReportService(reportId);
+            setReportList((prev) =>
+              prev.map((r) =>
+                r.ticket === reportId || r.id === reportId ? { ...r, status: 'Closed' } : r
+              )
+            );
+            if (selectedReport && (selectedReport.ticket === reportId || selectedReport.id === reportId)) {
+              setSelectedReport((prev) => (prev ? { ...prev, status: 'Closed' } : null));
+            }
+          } catch (err) {
+            console.error('Failed to close report:', err);
+          } finally {
+            setReportToClose(null);
+          }
         }}
       />
     </div>

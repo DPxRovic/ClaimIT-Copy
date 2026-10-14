@@ -297,6 +297,48 @@ export default function Login({ onForgotPassword, onRegister, onLoginSuccess }) 
             </button>
           </div>
 
+          {/* Quick Demo Credentials */}
+          <div className="mt-4 pt-3 border-t border-[#E8E4D8]">
+            <p className="text-xs font-semibold text-[#6E6858] uppercase tracking-wider mb-2 text-center">
+              Quick Demo Accounts
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setUsernameOrEmail('student@campus.edu');
+                  setPassword('demo123456');
+                  setErrorMessage('');
+                }}
+                className="py-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-[#23261F] rounded-lg text-xs font-medium transition-colors text-center cursor-pointer"
+              >
+                Student
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setUsernameOrEmail('faculty@campus.edu');
+                  setPassword('demo123456');
+                  setErrorMessage('');
+                }}
+                className="py-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-[#23261F] rounded-lg text-xs font-medium transition-colors text-center cursor-pointer"
+              >
+                Faculty
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setUsernameOrEmail('admin@campus.edu');
+                  setPassword('demo123456');
+                  setErrorMessage('');
+                }}
+                className="py-1.5 px-2 bg-[#5170ff]/10 hover:bg-[#5170ff]/20 text-[#5170ff] rounded-lg text-xs font-semibold transition-colors text-center cursor-pointer"
+              >
+                Admin
+              </button>
+            </div>
+          </div>
+
           {/* Register Link */}
           <div className="pt-2 text-center">
             <span className="text-base text-[#6E6858]">Don't have an account? </span>

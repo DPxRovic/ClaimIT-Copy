@@ -89,14 +89,59 @@ service cloud.firestore {
     }
 
     // -------------------------------------------------------------------------
-    // Reports: reports/{reportId} (Listing Catalog)
+    // Reports: reports/{reportId} (Listing Catalog & Report Lifecycle)
     // -------------------------------------------------------------------------
-    // Read: Authenticated users can browse campus listings.
-    // Write: Denied in Milestone 4. Will be enabled with validated schema in Prompt 6.
+    // Read:
+    //   - All authenticated users can browse and read listings.
+    // Create:
+    //   - Authenticated, active users only (suspended or pending approval users blocked).
+    //   - Creator UID must match request.auth.uid (cannot spoof ownership).
+    //   - Report type must be 'LOST' or 'FOUND'.
+    //   - Initial status must be 'Active'.
+    //   - Claims counter must initialize to 0.
+    //   - Core fields validated for string presence and length boundaries.
+    // Update:
+    //   - Report owners may modify permitted content fields (title, category, location, etc.).
+    //   - Immutables: reporterUid, type, ticketNumber, createdAt, claimsCount cannot be modified by user.
+    //   - Owners can soft-close their report by updating status to 'Closed' or 'Withdrawn'.
+    //   - Arbitrary status jumping is denied.
+    //   - Administrators possess full update authority.
+    // Delete:
+    //   - Hard deletion is strictly restricted to administrators. Ordinary users soft-close.
     // -------------------------------------------------------------------------
     match /reports/{reportId} {
       allow read: if isAuthenticated();
-      allow write: if false; // Denied until Prompt 6
+
+      allow create: if isAuthenticated() && isActiveUser() &&
+        request.resource.data.reporterUid == request.auth.uid &&
+        (request.resource.data.type in ['LOST', 'FOUND', 'lost', 'found']) &&
+        request.resource.data.status == 'Active' &&
+        request.resource.data.claimsCount == 0 &&
+        isValidString(request.resource.data.title, 2, 120) &&
+        isValidString(request.resource.data.category, 2, 64) &&
+        isValidString(request.resource.data.location, 2, 200) &&
+        isValidString(request.resource.data.description, 5, 2000) &&
+        isValidString(request.resource.data.date, 10, 10);
+
+      allow update: if (
+        isOwner(resource.data.reporterUid) &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'reporterUid', 'type', 'ticketNumber', 'createdAt', 'claimsCount'
+        ]) &&
+        (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'title', 'category', 'date', 'location', 'description', 'imageUrl', 'imageStoragePath', 'updatedAt'
+          ]) ||
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status', 'closedAt', 'closedBy', 'closeReason', 'updatedAt'
+            ]) &&
+            (request.resource.data.status in ['Closed', 'Withdrawn'])
+          )
+        )
+      ) || isAdmin();
+
+      allow delete: if isAdmin();
 
       // Claims subcollection: Denied until Prompt 7
       match /claims/{claimId} {
