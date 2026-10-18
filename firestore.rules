@@ -143,15 +143,94 @@ service cloud.firestore {
 
       allow delete: if isAdmin();
 
-      // Claims subcollection: Denied until Prompt 7
+      // -----------------------------------------------------------------------
+      // Claims subcollection: reports/{reportId}/claims/{claimId}
+      // -----------------------------------------------------------------------
+      // Read:
+      //   - Claimant can read their own claim.
+      //   - Parent report creator can read claims submitted on their listing.
+      //   - Administrators possess full read authority.
+      //   - Unrelated users are denied.
+      // Create:
+      //   - Authenticated, active user only.
+      //   - Claimant UID must match request.auth.uid (cannot spoof claimant).
+      //   - Cannot claim one's own report listing.
+      //   - Initial status must be 'Pending'.
+      //   - Parent report must not be 'Closed' or 'Resolved'.
+      //   - Protected review fields cannot be injected.
+      //   - String length bounds enforced.
+      // Update:
+      //   - Claimant can withdraw their pending claim (status -> 'Withdrawn').
+      //   - Report owner can review pending claim (status -> 'Approved' or 'Declined').
+      //   - Administrators possess full update authority.
+      //   - Protected immutable fields (claimantUid, reportId, ticketId, mode, createdAt) cannot be modified.
+      // Delete:
+      //   - Restricted exclusively to administrators.
+      // -----------------------------------------------------------------------
       match /claims/{claimId} {
-        allow read, write: if false;
+        allow read: if isAuthenticated() && (
+          isOwner(resource.data.claimantUid) ||
+          isOwner(get(/databases/$(database)/documents/reports/$(reportId)).data.reporterUid) ||
+          (resource.data.reportCreatorUid != null && isOwner(resource.data.reportCreatorUid)) ||
+          isAdmin()
+        );
+
+        allow create: if isAuthenticated() && isActiveUser() &&
+          request.resource.data.claimantUid == request.auth.uid &&
+          request.resource.data.status == 'Pending' &&
+          request.auth.uid != get(/databases/$(database)/documents/reports/$(reportId)).data.reporterUid &&
+          (get(/databases/$(database)/documents/reports/$(reportId)).data.status in ['Active', 'Pending Claim', 'Pending Match']) &&
+          !request.resource.data.keys().hasAny(['reviewedBy', 'reviewedAt', 'handoverLocation', 'resolvedClaimId']) &&
+          isValidString(request.resource.data.proofDetails, 5, 2000) &&
+          (request.resource.data.mode in ['claim', 'found_report']);
+
+        allow update: if (
+          // Case 1: Claimant withdrawing their own pending claim
+          (
+            isOwner(resource.data.claimantUid) &&
+            resource.data.status == 'Pending' &&
+            request.resource.data.status == 'Withdrawn' &&
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+              'claimantUid', 'reportId', 'ticketId', 'mode', 'proofDetails', 'createdAt', 'reviewedBy', 'reviewedAt'
+            ]) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status', 'decisionReason', 'updatedAt'
+            ])
+          ) ||
+          // Case 2: Parent report creator reviewing (approving or declining)
+          (
+            isOwner(get(/databases/$(database)/documents/reports/$(reportId)).data.reporterUid) &&
+            resource.data.status == 'Pending' &&
+            (request.resource.data.status in ['Approved', 'Declined']) &&
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+              'claimantUid', 'reportId', 'ticketId', 'mode', 'proofDetails', 'createdAt'
+            ]) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status', 'reviewedBy', 'reviewedAt', 'decisionReason', 'handoverLocation', 'updatedAt'
+            ])
+          ) ||
+          isAdmin()
+        );
+
+        allow delete: if isAdmin();
 
         // Messages subcollection: Denied until Prompt 8
         match /messages/{messageId} {
           allow read, write: if false;
         }
       }
+    }
+
+    // -------------------------------------------------------------------------
+    // Claims Collection Group: /{path=**}/claims/{claimId} (for My Claims feed)
+    // -------------------------------------------------------------------------
+    match /{path=**}/claims/{claimId} {
+      allow read: if isAuthenticated() && (
+        resource.data.claimantUid == request.auth.uid ||
+        (resource.data.reportCreatorUid != null && resource.data.reportCreatorUid == request.auth.uid) ||
+        isAdmin()
+      );
+      allow write: if false;
     }
 
     // -------------------------------------------------------------------------

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, UploadCloud, Shield, MapPin, Send, Trash2 } from 'lucide-react';
+import { X, UploadCloud, Shield, MapPin, Send, Trash2, RefreshCw } from 'lucide-react';
+import { submitClaimService } from '../firebase/claims.js';
 
 /**
  * Reusable Action Modal:
@@ -23,6 +24,7 @@ export const BrowseItemActionModal = ({
   const [inputText, setInputText] = useState('');
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -30,6 +32,7 @@ export const BrowseItemActionModal = ({
       setInputText('');
       setUploadedFiles([]);
       setError('');
+      setIsSubmitting(false);
       return;
     }
 
@@ -47,7 +50,7 @@ export const BrowseItemActionModal = ({
   if (!isOpen || !item) return null;
 
   const isFoundReport = mode === 'found_report';
-  const posterName = item.postedBy || 'Hannah Puerta (BS Computer Science)';
+  const posterName = item.postedBy || item.reporterName || 'Campus Member';
 
   // Shorten name e.g. "Paolo D."
   const nameParts = posterName.replace(/\(.*?\)/, '').trim().split(' ');
@@ -58,11 +61,25 @@ export const BrowseItemActionModal = ({
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files.length > 0) {
-      const newFiles = Array.from(e.target.files).map((f) => ({
-        name: f.name,
-        size: `${(f.size / (1024 * 1024)).toFixed(1)} MB`,
-      }));
-      setUploadedFiles((prev) => [...prev, ...newFiles].slice(0, 3));
+      const selected = Array.from(e.target.files);
+      const validFiles = [];
+      let sizeError = '';
+
+      for (const file of selected) {
+        if (file.size > 10 * 1024 * 1024) {
+          sizeError = `File "${file.name}" exceeds the 10 MB limit. Please select smaller images.`;
+        } else {
+          validFiles.push(file);
+        }
+      }
+
+      if (sizeError) {
+        setError(sizeError);
+      } else if (error) {
+        setError('');
+      }
+
+      setUploadedFiles((prev) => [...prev, ...validFiles].slice(0, 3));
     }
   };
 
@@ -70,9 +87,11 @@ export const BrowseItemActionModal = ({
     setUploadedFiles((prev) => prev.filter((_, idx) => idx !== indexToRemove));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!inputText.trim()) {
+    const cleanText = inputText.trim();
+
+    if (!cleanText) {
       setError(
         isFoundReport
           ? 'Please provide where you spotted or turned in the item.'
@@ -81,17 +100,46 @@ export const BrowseItemActionModal = ({
       return;
     }
 
-    const randomNum = Math.floor(1000 + Math.random() * 9000);
-    const ticketId = isFoundReport ? `#FND-${randomNum}` : `#CLM-${randomNum}`;
+    if (cleanText.length < 5) {
+      setError('Please provide at least 5 characters describing your claim or match.');
+      return;
+    }
 
-    onSubmitSuccess({
-      item,
-      mode,
-      ticketId,
-      inputText,
-      uploadedFiles,
-      submittedAt: 'Just now',
-    });
+    if (cleanText.length > 2000) {
+      setError('Your claim description cannot exceed 2000 characters.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError('');
+
+    try {
+      const result = await submitClaimService({
+        reportId: item.id || item.reportId || item.ticketNumber || item.ticket,
+        mode,
+        proofDetails: cleanText,
+        files: uploadedFiles,
+        report: item,
+      });
+
+      if (onSubmitSuccess) {
+        onSubmitSuccess({
+          item,
+          mode,
+          ticketId: result.ticketId,
+          claimId: result.claimId,
+          inputText: cleanText,
+          uploadedFiles,
+          submittedAt: 'Just now',
+        });
+      }
+      onClose();
+    } catch (err) {
+      console.error('[BrowseItemActionModal] Submit error:', err);
+      setError(err.message || 'Failed to submit claim. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -306,10 +354,20 @@ export const BrowseItemActionModal = ({
 
             <button
               type="submit"
-              className="bg-[#3b82f6] hover:bg-[#2563eb] active:bg-blue-700 text-white font-medium text-xs sm:text-sm px-5 py-2.5 rounded-xl flex items-center gap-2 shadow-xs transition cursor-pointer"
+              disabled={isSubmitting}
+              className="bg-[#3b82f6] hover:bg-[#2563eb] active:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium text-xs sm:text-sm px-5 py-2.5 rounded-xl flex items-center gap-2 shadow-xs transition cursor-pointer"
             >
-              <span>{isFoundReport ? 'Submit Found Report' : 'Submit claim'}</span>
-              <Send className="w-3.5 h-3.5" />
+              {isSubmitting ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>Submitting...</span>
+                </>
+              ) : (
+                <>
+                  <span>{isFoundReport ? 'Submit Found Report' : 'Submit claim'}</span>
+                  <Send className="w-3.5 h-3.5" />
+                </>
+              )}
             </button>
           </div>
         </form>

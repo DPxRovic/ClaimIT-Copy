@@ -30,3 +30,6 @@ export { manageAccountStatus, setAdminRole } from './modules/admin.js';
 // Report lifecycle functions
 export { createReport, updateReport, closeReport, deleteReport } from './modules/reports.js';
 
+// Claims and ownership verification functions
+export { submitClaim, reviewClaim, withdrawClaim } from './modules/claims.js';
+

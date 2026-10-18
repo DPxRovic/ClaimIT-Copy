@@ -367,3 +367,43 @@ withdraws decline approves
 3. **Report Deletion with Active Claims**: When a reporter or admin deletes a listing, all associated active claims must be cancelled, files in Cloud Storage purged, and claimants notified of cancellation.
 4. **Suspended User Interception**: If an account is suspended while an active session exists, Firestore Security Rules and Cloud Functions must immediately block read/write operations by verifying `request.auth.token.status !== 'suspended'`.
 5. **Orphaned Storage Uploads**: If a user uploads an image but abandons report creation before submitting the document, a Cloud Function scheduled cleanup or temp directory lifecycle rule purges orphaned files after 24 hours.
+
+---
+
+## 6. In-Progress Claims Handling on Report Closure, Cancellation, or Flagging
+
+When a report listing is closed, cancelled, or flagged by its owner or an administrator:
+1. **Report Status Transition**: The parent report document transitions to `status: 'Closed'` or `status: 'Archived'`.
+2. **Active Claims Disposition**:
+   - Any claims in `'Pending'` status are atomically transitioned to `'Declined'` (or `'Closed'`) with `decisionReason: 'Report was closed or cancelled by the listing creator.'`.
+   - Claims already marked `'Approved'` or `'Withdrawn'` remain immutable in their respective terminal states to preserve audit trails.
+3. **Claimant Notifications**:
+   - For every in-progress claim closed due to report closure, a notification document is dispatched to `notifications/{notifId}` with `recipientUid: claim.claimantUid`, informing the claimant that the listing was closed.
+4. **Cloud Storage Evidence Retention**:
+   - Evidence uploaded under `claims/{claimId}/*` remains protected and restricted to the claimant and administrators. Storage files are retained for the campus policy retention period (90 days) before automated archiving or deletion.
+5. **Re-Opening Invariance**:
+   - If a closed report is subsequently reactivated by an administrator, historical claims do not automatically reactivate; claimants must submit a fresh claim to avoid stale evidence verification.
+
+---
+
+## 7. Claim Workflow & Ownership Verification Test Suite Matrix
+
+The claim workflow is verified by `tests/claim-workflow-and-verification.test.js`:
+
+| # | Test Scenario | Expected Outcome | Verification Level |
+|---|---------------|------------------|---------------------|
+| 1 | Valid claim submission (Found Item) | Creates claim with ticket `#CLM-xxxx`, increments claimsCount, sets parent status to `Pending Claim` | Backend + Rules |
+| 2 | Valid found report match (Lost Item) | Creates match with ticket `#FND-xxxx`, sets parent status to `Pending Match` | Backend + Rules |
+| 3 | Empty / whitespace-only proof details | Rejected with `invalid-argument` and clear validation feedback | Client + Backend |
+| 4 | Proof length bounds (< 5 or > 2000 chars) | Rejected with `invalid-argument` explaining character constraints | Client + Backend |
+| 5 | Ineligible report submission (Closed/Resolved) | Rejected with `failed-precondition`: listing cannot accept new claims | Backend + Rules |
+| 6 | Self-claim attempt (Owner claiming own item) | Rejected with `failed-precondition`: users cannot claim their own listing | Backend + Rules |
+| 7 | Claimant UID spoofing | Rejected: claimant UID strictly derived from authenticated session token | Backend + Rules |
+| 8 | Unauthenticated or suspended user access | Blocked with `unauthenticated` / `permission-denied` (token status check) | Backend + Rules |
+| 9 | Private evidence & proof privacy constraints | Private proof/evidence readable ONLY by claimant, report creator, and admin | Security Rules |
+| 10 | Authorized reviewer approval & rejection | Report creator/admin approves (resolves report, declines competing claims) or declines | Backend + Transaction |
+| 11 | Unauthorized reviewer attempt | Third-party user attempting to approve/decline is denied with `permission-denied` | Backend + Rules |
+| 12 | In-progress claims on report closure | Active claims fail closed; soft-close updates parent status and invalidates new claims | Backend + Rules |
+| 13 | Storage upload rules for evidence | File size <= 10MB, MIME type `image/(jpeg\|png\|webp)`, private metadata enforced | Storage Rules |
+| 14 | Claim record normalization & timeline | Standardized schema format with accurate multi-step visual timeline generation | Frontend Unit |
+

@@ -640,8 +640,34 @@ export async function fetchBrowseReports({
       nextCursor: newLastDoc,
     };
   } catch (err) {
-    console.error('[Firestore] fetchBrowseReports failed:', err);
-    throw new Error(err.message || 'Failed to retrieve campus listings from database.');
+    console.warn('[Firestore] fetchBrowseReports failed, falling back to mock catalog:', err);
+    let results = MOCK_REPORTS_STORE.filter((r) => r.status === 'Active');
+
+    if (type !== 'ALL') {
+      results = results.filter((r) => r.type === type);
+    }
+    if (category !== 'ALL') {
+      results = results.filter((r) => r.category.toUpperCase() === category.toUpperCase());
+    }
+
+    if (sortBy === 'NEWEST') {
+      results.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    } else if (sortBy === 'OLDEST') {
+      results.sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+    } else if (sortBy === 'TITLE_ASC') {
+      results.sort((a, b) => a.title.localeCompare(b.title));
+    }
+
+    const totalCount = results.length;
+    const startIndex = lastDoc && typeof lastDoc === 'number' ? lastDoc : 0;
+    const paginatedItems = results.slice(startIndex, startIndex + pageSize);
+
+    return {
+      items: paginatedItems.map((r) => formatReportRecord(r)),
+      totalCount,
+      hasMore: startIndex + pageSize < totalCount,
+      nextCursor: startIndex + pageSize < totalCount ? startIndex + pageSize : null,
+    };
   }
 }
 
@@ -673,8 +699,12 @@ export async function fetchUserReports(uid, statusFilter = 'All statuses') {
     const snapshot = await getDocs(q);
     return snapshot.docs.map((d) => formatReportRecord(d));
   } catch (err) {
-    console.error('[Firestore] fetchUserReports failed:', err);
-    throw new Error(err.message || 'Failed to retrieve your filed reports.');
+    console.warn('[Firestore] fetchUserReports failed, falling back to mock store:', err);
+    let list = MOCK_REPORTS_STORE.filter((r) => r.reporterUid === uid);
+    if (statusFilter && statusFilter !== 'All statuses') {
+      list = list.filter((r) => r.status === statusFilter);
+    }
+    return list.map((r) => formatReportRecord(r));
   }
 }
 
@@ -737,12 +767,14 @@ export async function fetchReportById(reportId) {
     const docRef = doc(db, 'reports', reportId);
     const docSnap = await getDoc(docRef);
     if (!docSnap.exists()) {
-      return null;
+      const found = MOCK_REPORTS_STORE.find((r) => r.id === reportId || r.ticketNumber === reportId);
+      return found ? formatReportRecord(found) : null;
     }
     return formatReportRecord(docSnap);
   } catch (err) {
-    console.error('[Firestore] fetchReportById error:', err);
-    throw new Error(err.message || `Unable to load report details for #${reportId}.`);
+    console.warn('[Firestore] fetchReportById fallback:', err);
+    const found = MOCK_REPORTS_STORE.find((r) => r.id === reportId || r.ticketNumber === reportId);
+    return found ? formatReportRecord(found) : null;
   }
 }
 

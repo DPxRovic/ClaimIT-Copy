@@ -4,6 +4,7 @@ import ReportDetailsModal from './ReportDetailsModal.jsx';
 import ClaimMatchVerificationModal from './ClaimMatchVerificationModal.jsx';
 import CloseThisReportModal from './CloseThisReportModal.jsx';
 import { closeReportService, subscribeUserReports } from '../firebase/reports.js';
+import { fetchReportClaims, reviewClaimService } from '../firebase/claims.js';
 import { useAuth } from '../context/AuthContext.jsx';
 
 export const DEFAULT_REPORTS = [
@@ -241,8 +242,33 @@ export const MyReports = ({
     return reportList.filter((report) => report.status === selectedStatus);
   }, [reportList, selectedStatus]);
 
-  const handleOpenReport = (report) => {
+  const handleOpenReport = async (report) => {
     setSelectedReport(report);
+    const reportId = report.id || report.ticket || report.ticketNumber;
+    try {
+      const claims = await fetchReportClaims(reportId);
+      if (claims && claims.length > 0) {
+        const formattedEntries = claims.map((c) => ({
+          id: c.ticketId || c.id,
+          claimId: c.id,
+          type: c.mode === 'found_report' ? 'match' : 'claim',
+          isMatch: c.mode === 'found_report',
+          name: c.claimantName,
+          submitterName: c.claimantName,
+          role: c.claimantRole || (c.mode === 'found_report' ? 'Reported Found' : 'Claimant'),
+          date: c.submitted,
+          submittedDate: c.submitted,
+          status: c.status,
+          imageUrl: c.attachmentUrls?.[0] || null,
+          message: c.userProof || c.proofDetails,
+          messagePreview: c.userProof || c.proofDetails,
+          messages: [],
+        }));
+        setSelectedReport((prev) => (prev ? { ...prev, entries: formattedEntries, claimsCount: claims.length } : null));
+      }
+    } catch (err) {
+      console.warn('[MyReports] Could not fetch claims for report:', err);
+    }
   };
 
   const handleOpenVerification = (entry) => {
@@ -250,6 +276,7 @@ export const MyReports = ({
 
     setSelectedVerification({
       id: entry.id,
+      claimId: entry.claimId || entry.id,
       type: entry.type || (selectedReport.type === 'LOST' ? 'match' : 'claim'),
       itemTitle: selectedReport.title,
       reportTicket: selectedReport.ticket || selectedReport.ticketNumber,
@@ -263,16 +290,56 @@ export const MyReports = ({
     });
   };
 
-  const handleApprove = (ver) => {
-    setToastMessage(`Approved ${ver.type === 'match' ? 'Match' : 'Claim'} ${ver.id} for ${ver.submitterName}!`);
-    setSelectedVerification((prev) => (prev ? { ...prev, status: 'Approved', isClosed: true } : null));
-    setTimeout(() => setToastMessage(null), 4000);
+  const handleApprove = async (ver) => {
+    const reportId = selectedReport?.id || selectedReport?.ticket || selectedReport?.ticketNumber;
+    const claimId = ver.claimId || ver.id;
+
+    try {
+      await reviewClaimService({
+        reportId,
+        claimId,
+        action: 'approve',
+        handoverLocation: 'Campus Security / Lost & Found Office (Student Affairs Desk)',
+      });
+
+      setToastMessage(`Approved ${ver.type === 'match' ? 'Match' : 'Claim'} ${ver.id} for ${ver.submitterName}!`);
+      setSelectedVerification((prev) => (prev ? { ...prev, status: 'Approved', isClosed: true } : null));
+      setSelectedReport((prev) => (prev ? { ...prev, status: 'Resolved' } : null));
+      setReportList((prev) =>
+        prev.map((r) =>
+          r.id === reportId || r.ticket === reportId || r.ticketNumber === reportId
+            ? { ...r, status: 'Resolved' }
+            : r
+        )
+      );
+    } catch (err) {
+      console.error('[MyReports] Failed to approve claim:', err);
+      setToastMessage(err.message || 'Failed to approve claim. Please try again.');
+    } finally {
+      setTimeout(() => setToastMessage(null), 4000);
+    }
   };
 
-  const handleDecline = (ver) => {
-    setToastMessage(`Declined ${ver.type === 'match' ? 'Match' : 'Claim'} ${ver.id}.`);
-    setSelectedVerification((prev) => (prev ? { ...prev, status: 'Declined', isClosed: true } : null));
-    setTimeout(() => setToastMessage(null), 4000);
+  const handleDecline = async (ver) => {
+    const reportId = selectedReport?.id || selectedReport?.ticket || selectedReport?.ticketNumber;
+    const claimId = ver.claimId || ver.id;
+
+    try {
+      await reviewClaimService({
+        reportId,
+        claimId,
+        action: 'decline',
+        declineReason: 'Submitted proof did not match the item details.',
+      });
+
+      setToastMessage(`Declined ${ver.type === 'match' ? 'Match' : 'Claim'} ${ver.id}.`);
+      setSelectedVerification((prev) => (prev ? { ...prev, status: 'Declined', isClosed: true } : null));
+    } catch (err) {
+      console.error('[MyReports] Failed to decline claim:', err);
+      setToastMessage(err.message || 'Failed to decline claim. Please try again.');
+    } finally {
+      setTimeout(() => setToastMessage(null), 4000);
+    }
   };
 
   const handleSendMessage = (text) => {

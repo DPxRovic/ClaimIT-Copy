@@ -68,12 +68,23 @@ service firebase.storage {
     // -------------------------------------------------------------------------
     // Privacy Requirement: Evidence (receipts, serial numbers, intimate photos)
     // must NEVER be publicly readable or accessible to unrelated users.
-    // Access is managed via authenticated backend verification and signed URLs.
-    // Direct client reads and writes are denied by default.
+    // Allowed readers: uploader (claimant), reviewer (report creator), or admin.
+    // Upload: authenticated active users (image MIME only, <= 10MB).
     // -------------------------------------------------------------------------
     match /claims/{claimId}/{fileName} {
-      allow read: if false;
-      allow write: if false;
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        (resource != null && (
+          resource.metadata.uploaderUid == request.auth.uid ||
+          resource.metadata.reportCreatorUid == request.auth.uid
+        ))
+      );
+      allow write: if isAuthenticated() && isActiveUser() && isImage() && isUnderMaxSize(10) &&
+        request.resource.metadata.uploaderUid == request.auth.uid;
+      allow delete: if isAuthenticated() && (
+        isAdmin() ||
+        (resource != null && resource.metadata.uploaderUid == request.auth.uid)
+      );
     }
   }
 }

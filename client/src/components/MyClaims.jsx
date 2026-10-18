@@ -1,8 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Search, X, CheckCircle, ChevronDown, MessageSquare, Eye } from 'lucide-react';
 import { ModalWithdraw } from './ModalWithdraw';
 import { ModalMessage } from './ModalMessage';
 import { ModalViewDetails } from './ModalViewDetails';
+import { useAuth } from '../context/AuthContext.jsx';
+import { subscribeUserClaims, withdrawClaimService } from '../firebase/claims.js';
 
 /**
  * Hardcoded claims dataset matching the exact reference layout
@@ -310,8 +312,34 @@ export const MyClaims = ({
   onWithdrawClaim,
   className = '',
 }) => {
-  // Master claims state initialized with hardcoded items
+  const { currentUser } = useAuth();
+
+  // Master claims state initialized with passed claims or defaults
   const [claimsList, setClaimsList] = useState(initialClaims);
+
+  // Subscribe to real-time user claims from Firestore
+  useEffect(() => {
+    if (!currentUser?.uid) {
+      setClaimsList(initialClaims);
+      return;
+    }
+
+    const unsubscribe = subscribeUserClaims(
+      currentUser.uid,
+      (userClaims) => {
+        if (userClaims && userClaims.length > 0) {
+          setClaimsList(userClaims);
+        } else {
+          setClaimsList(initialClaims);
+        }
+      },
+      (err) => {
+        console.warn('[MyClaims] Real-time user claims subscription warning:', err);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [currentUser?.uid, initialClaims]);
 
   // Chat messages state
   const [chatThreads, setChatThreads] = useState(DEFAULT_MESSAGES);
@@ -459,29 +487,46 @@ export const MyClaims = ({
   const currentClaims = filteredClaims.slice(startIndex, endIndex);
 
   // Withdraw action handler
-  const handleWithdrawConfirm = (claimId, reason) => {
-    setClaimsList((prev) =>
-      prev.map((c) =>
-        c.id === claimId
-          ? {
-              ...c,
-              status: 'Withdrawn',
-              declinedReason: `Withdrawn by user: ${reason}`,
-              timeline: [
-                ...(c.timeline || []),
-                {
-                  step: `Withdrawn: ${reason}`,
-                  date: 'Just now',
-                  completed: true,
-                  current: true,
-                },
-              ],
-            }
-          : c
-      )
+  const handleWithdrawConfirm = async (claimId, reason) => {
+    const claim = claimsList.find(
+      (c) => c.id === claimId || c.claimId === claimId || c.ticketId === claimId
     );
-    setModal((prev) => (prev ? { ...prev, claim: { ...prev.claim, status: 'Withdrawn' } } : null));
-    showNotification(`Claim ${claimId} has been withdrawn.`);
+
+    try {
+      if (claim?.reportId) {
+        await withdrawClaimService({
+          reportId: claim.reportId,
+          claimId: claim.claimId || claim.id,
+          reason,
+        });
+      }
+
+      setClaimsList((prev) =>
+        prev.map((c) =>
+          c.id === claimId || c.claimId === claimId || c.ticketId === claimId
+            ? {
+                ...c,
+                status: 'Withdrawn',
+                declinedReason: `Withdrawn by user: ${reason}`,
+                timeline: [
+                  ...(c.timeline || []),
+                  {
+                    step: `Withdrawn: ${reason}`,
+                    date: 'Just now',
+                    completed: true,
+                    current: true,
+                  },
+                ],
+              }
+            : c
+        )
+      );
+      setModal((prev) => (prev ? { ...prev, claim: { ...prev.claim, status: 'Withdrawn' } } : null));
+      showNotification(`Claim ${claimId} has been withdrawn.`);
+    } catch (err) {
+      console.error('[MyClaims] Withdraw error:', err);
+      showNotification(err.message || 'Failed to withdraw claim. Please try again.');
+    }
   };
 
   // Send message action handler

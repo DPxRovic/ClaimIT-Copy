@@ -221,7 +221,7 @@ export default function MainForm_User({
       case 'browse-items':
         return (
           <Suspense fallback={<PageLoading label="Browse Items" />}>
-            <BrowseItems />
+            <BrowseItems onNavigateToClaims={() => setCurrentTab('my-claims')} />
           </Suspense>
         );
 

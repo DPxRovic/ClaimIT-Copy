@@ -24,7 +24,7 @@ ClaimIt is a comprehensive university campus Lost and Found management web appli
 ## 2. Milestone Discipline & Implementation Scope
 
 - **Sequential Execution**: Follow the milestone prompts strictly.
-- **Current Milestone**: **Milestone 6 Completed — Report Browsing, Search, Pagination & Owner Management (Ready for Prompt 7 / Claim Workflow & Evidence Verification)**.
+- **Current Milestone**: **Milestone 7 Completed — Claim Submission, Private Evidence & Ownership Verification (Ready for Prompt 8 / Direct Messaging & Notifications)**.
 - **Scope Restriction**: Only implement features requested for the active milestone. Do NOT jump ahead to full browse/search experience, claims verification, messaging, or admin dashboard modules until their respective prompts.
 - **Preserve Existing Frontend**:
   - Do NOT redesign or restyle the frontend.

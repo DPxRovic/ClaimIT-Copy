@@ -146,7 +146,7 @@ ClaimIt is a centralized web platform designed for university campuses to stream
 
 ---
 
-### 3.3 Claim & Ownership Verification Workflow
+### 3.3 Claim & Ownership Verification Workflow — [IMPLEMENTED]
 
 ClaimIt supports two directional verification workflows depending on listing type:
 
@@ -221,10 +221,9 @@ ClaimIt supports two directional verification workflows depending on listing typ
 | Feature Area | Current State in Repository | Planned Backend Milestone |
 | :--- | :--- | :--- |
 | **Authentication** | **Implemented** (Firebase Auth, AuthContext, session restore, password reset) | Complete (Milestone 3) |
-| **User Persistence** | **Implemented** (Firestore `users/{uid}`, real-time subscription, protected fields) | Complete (Milestone 3) |
-| **Report Creation** | Local state + `FileReader` dataURL preview; no storage | Firestore `reports` + Storage bucket uploads (Prompt 6) |
-| **Browse & Filter** | In-memory array (`DEFAULT_BROWSE_ITEMS`) filtered via `useMemo` | Firestore queries with indexed filters (Prompt 6) |
-| **Claims & Matches** | In-memory arrays (`DEFAULT_CLAIMS`, `DEFAULT_REPORTS`) | Firestore `claims` subcollection with atomic transactions (Prompt 7) |
+| **Report Creation** | **Implemented** (Firestore `reports` + Storage bucket uploads via callable and client fallback) | Complete (Milestone 5) |
+| **Browse & Filter** | **Implemented** (Firestore queries, composite indexes, active listings, pagination) | Complete (Milestone 6) |
+| **Claims & Matches** | **Implemented** (Firestore `claims` subcollection & collectionGroup, callable functions `submitClaim`, `reviewClaim`, `withdrawClaim`, Storage evidence privacy, atomic transitions) | Complete (Milestone 7) |
 | **Messaging** | In-memory state array in verification modal | Firestore real-time `messages` subcollection (`onSnapshot`) (Prompt 8) |
 | **Notifications** | Static array in `Notifications.jsx` | Firestore `notifications` collection with unread counters (Prompt 8) |
 | **Admin Operations** | Local React state mutations; resets on page reload | Cloud Functions 2nd Gen with Firebase Admin SDK (Prompt 9) |
