@@ -14,7 +14,7 @@ import {
   serverTimestamp,
   writeBatch,
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { httpsCallable } from 'firebase/functions';
 import { auth, db, storage, functions } from './config.js';
 import { formatReportRecord } from './reports.js';
@@ -274,6 +274,17 @@ export async function uploadClaimEvidence(file, claimTempId = 'temp', reportCrea
   const fileName = file.name || 'evidence.jpg';
   const formattedSize = `${(file.size / (1024 * 1024)).toFixed(1)} MB`;
 
+  // Validate file MIME type (only JPEG, PNG, WebP)
+  const allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
+  if (file.type && !allowedMimes.includes(file.type)) {
+    throw new Error('Only JPEG, PNG, and WebP images are supported for evidence uploads.');
+  }
+
+  // Validate file size (max 10MB)
+  if (file.size > 10 * 1024 * 1024) {
+    throw new Error('Evidence file exceeds the maximum limit of 10MB.');
+  }
+
   // Demo session fallback: local Object URL
   if (isMockSession()) {
     const objectUrl = URL.createObjectURL(file);
@@ -307,20 +318,15 @@ export async function uploadClaimEvidence(file, claimTempId = 'temp', reportCrea
       size: formattedSize,
     };
   } catch (storageErr) {
-    console.warn('[Storage] Evidence upload failed, falling back to local object URL:', storageErr);
-    const objectUrl = URL.createObjectURL(file);
-    return {
-      url: objectUrl,
-      path: storagePath,
-      name: fileName,
-      size: formattedSize,
-    };
+    console.error('[Storage] Evidence upload failed:', storageErr);
+    throw new Error(`Failed to upload evidence attachment: ${storageErr.message || 'Storage error'}`);
   }
 }
 
 /**
  * Submits an ownership claim or found report match on an item.
- * Validates inputs, uploads evidence files, and calls the trusted backend.
+ * Validates inputs, uploads evidence files, calls trusted backend Cloud Function,
+ * cleans up uploaded files if submission fails, and prevents false-success responses.
  */
 export async function submitClaimService({
   reportId,
@@ -381,8 +387,8 @@ export async function submitClaimService({
     }
   }
 
+  // 1. Production / Backend Path: Callable Cloud Function `submitClaim`
   if (!isMockSession()) {
-    // 1. Primary path: Callable Cloud Function `submitClaim`
     try {
       const submitCallable = httpsCallable(functions, 'submitClaim');
       const response = await submitCallable({
@@ -402,76 +408,28 @@ export async function submitClaimService({
         attachmentSizes,
       };
     } catch (fnErr) {
-      const isFnUnavailable =
-        fnErr.code === 'functions/unavailable' ||
-        fnErr.code === 'functions/not-found' ||
-        fnErr.message?.includes('network') ||
-        fnErr.message?.includes('internal');
+      console.error('[submitClaimService] Cloud Function submission failed:', fnErr);
 
-      if (!isFnUnavailable) {
-        throw fnErr;
+      // Clean up orphaned uploaded storage evidence files upon failed submission
+      for (const storagePath of attachmentPaths) {
+        try {
+          const fileRef = ref(storage, storagePath);
+          await deleteObject(fileRef);
+        } catch (cleanupErr) {
+          console.warn('[Storage] Evidence cleanup non-blocking warning:', cleanupErr);
+        }
       }
 
-      console.info('[Claims] Callable function unavailable; executing direct Firestore write fallback.');
-
-      // 2. Direct Firestore fallback (governed by firestore.rules)
-      try {
-        const reportRef = doc(db, 'reports', reportId);
-        const claimsCol = collection(reportRef, 'claims');
-        const claimDocRef = doc(claimsCol);
-        const ticketId = mode === 'found_report'
-          ? `#FND-${Math.floor(1000 + Math.random() * 9000)}`
-          : `#CLM-${Math.floor(1000 + Math.random() * 9000)}`;
-
-        const newClaimDoc = {
-          id: claimDocRef.id,
-          ticketId,
-          reportId,
-          reportTitle: report?.title || 'Campus Item',
-          reportType: report?.type || 'FOUND',
-          reportLocation: report?.location || '',
-          reportImageUrl: report?.imageUrl || null,
-          reportCreatorUid: report?.reporterUid || '',
-          posterName: report?.reporterName || 'Campus Member',
-          claimantUid: currentUser.uid,
-          claimantName: currentUser.displayName || currentUser.email?.split('@')[0] || 'Campus Member',
-          claimantRole: 'Student',
-          claimantEmail: currentUser.email || '',
-          mode,
-          status: 'Pending',
-          proofDetails: cleanProof,
-          attachmentUrls,
-          attachmentPaths,
-          attachmentNames,
-          attachmentSizes,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        };
-
-        const batch = writeBatch(db);
-        batch.set(claimDocRef, newClaimDoc);
-        batch.update(reportRef, {
-          status: mode === 'found_report' ? 'Pending Match' : 'Pending Claim',
-          updatedAt: serverTimestamp(),
-        });
-
-        await batch.commit();
-
-        return {
-          success: true,
-          claimId: claimDocRef.id,
-          ticketId,
-          status: 'Pending',
-          reportId,
-          message: `${mode === 'found_report' ? 'Found report' : 'Claim'} submitted successfully.`,
-        };
-      } catch (firestoreErr) {
-        console.warn('[Firestore] Direct claim write fallback failed:', firestoreErr);
-      }
+      // Propagate honest error to caller; NEVER fake success
+      const userMessage =
+        fnErr.details?.message ||
+        fnErr.message ||
+        'Failed to submit claim. Please try again.';
+      throw new Error(userMessage);
     }
   }
 
-  // 3. In-memory fallback for demo session
+  // 2. Demo Session In-Memory Store
   const mockClaimId = `clm-${Math.floor(1000 + Math.random() * 9000)}`;
   const ticketId = mode === 'found_report'
     ? `#FND-${Math.floor(1000 + Math.random() * 9000)}`
@@ -518,6 +476,7 @@ export async function submitClaimService({
 
 /**
  * Reviews a claim (Approve or Decline) by the report owner or administrator.
+ * Calls the trusted backend Cloud Function and rejects false-success fallbacks.
  */
 export async function reviewClaimService({
   reportId,
@@ -547,45 +506,16 @@ export async function reviewClaimService({
       });
       return response.data;
     } catch (fnErr) {
-      console.warn('[reviewClaim] Cloud function unavailable; applying direct Firestore update fallback:', fnErr);
-      try {
-        const claimRef = doc(db, 'reports', reportId, 'claims', claimId);
-        const reportRef = doc(db, 'reports', reportId);
-        const newStatus = action === 'approve' ? 'Approved' : 'Declined';
-
-        const batch = writeBatch(db);
-        batch.update(claimRef, {
-          status: newStatus,
-          reviewedBy: currentUser.uid,
-          reviewedAt: serverTimestamp(),
-          decisionReason: declineReason || (action === 'approve' ? 'Verified by report owner.' : 'Submitted details did not match.'),
-          handoverLocation: handoverLocation || 'Campus Lost & Found Office',
-          updatedAt: serverTimestamp(),
-        });
-
-        if (action === 'approve') {
-          batch.update(reportRef, {
-            status: 'Resolved',
-            resolvedClaimId: claimId,
-            updatedAt: serverTimestamp(),
-          });
-        }
-
-        await batch.commit();
-
-        return {
-          success: true,
-          claimId,
-          status: newStatus,
-          reportStatus: action === 'approve' ? 'Resolved' : 'Active',
-        };
-      } catch (err) {
-        console.warn('Firestore review claim direct fallback failed:', err);
-      }
+      console.error('[reviewClaimService] Review callable failed:', fnErr);
+      const userMessage =
+        fnErr.details?.message ||
+        fnErr.message ||
+        `Failed to ${action} claim. Please try again.`;
+      throw new Error(userMessage);
     }
   }
 
-  // Update in-memory mock store
+  // Update in-memory mock store for demo sessions
   const target = MOCK_CLAIMS_STORE.find((c) => c.id === claimId || c.claimId === claimId || c.ticketId === claimId);
   const newStatus = action === 'approve' ? 'Approved' : 'Declined';
   if (target) {
@@ -608,6 +538,7 @@ export async function reviewClaimService({
 
 /**
  * Withdraws a pending claim submitted by the current user.
+ * Calls the trusted backend Cloud Function and rejects false-success fallbacks.
  */
 export async function withdrawClaimService({ reportId, claimId, reason = 'Withdrawn by claimant' }) {
   const currentUser = auth.currentUser;
@@ -621,22 +552,16 @@ export async function withdrawClaimService({ reportId, claimId, reason = 'Withdr
       const response = await withdrawCallable({ reportId, claimId, reason });
       return response.data;
     } catch (fnErr) {
-      console.warn('[withdrawClaim] Cloud Function unavailable; attempting direct Firestore fallback:', fnErr);
-      try {
-        const claimRef = doc(db, 'reports', reportId, 'claims', claimId);
-        await updateDoc(claimRef, {
-          status: 'Withdrawn',
-          decisionReason: reason,
-          updatedAt: serverTimestamp(),
-        });
-        return { success: true, claimId, status: 'Withdrawn' };
-      } catch (err) {
-        console.warn('Direct Firestore withdraw fallback failed:', err);
-      }
+      console.error('[withdrawClaimService] Withdraw callable failed:', fnErr);
+      const userMessage =
+        fnErr.details?.message ||
+        fnErr.message ||
+        'Failed to withdraw claim. Please try again.';
+      throw new Error(userMessage);
     }
   }
 
-  // Update in-memory mock store
+  // Update in-memory mock store for demo sessions
   const target = MOCK_CLAIMS_STORE.find((c) => c.id === claimId || c.claimId === claimId || c.ticketId === claimId);
   if (target) {
     target.status = 'Withdrawn';

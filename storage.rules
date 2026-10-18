@@ -20,6 +20,11 @@ service firebase.storage {
         (request.auth.token.role == 'admin' || request.auth.token.role == 'Admin');
     }
 
+    function isActiveUser() {
+      return isAuthenticated() &&
+        (request.auth.token.status == 'active' || request.auth.token.status == 'Active');
+    }
+
     function isImage() {
       return request.resource != null &&
         request.resource.contentType.matches('image/(jpeg|png|webp)');

@@ -37,14 +37,55 @@ export default function RegFormStudent({ onLogin, onSwitchToFaculty, onSubmit })
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!fullName.trim()) {
+    const cleanFullName = fullName.trim();
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanStudentId = studentId.trim();
+    const cleanProgram = (program || '').trim();
+    const cleanYearLevel = (yearLevel || '').trim();
+    const cleanSection = section.trim();
+
+    if (!cleanFullName) {
       setErrorMessage('Please enter your full name.');
       return;
     }
 
-    if (!email.trim() || !email.includes('@')) {
-      setErrorMessage('Please enter a valid email address.');
+    if (cleanFullName.length < 2 || cleanFullName.length > 100) {
+      setErrorMessage('Full Name must be between 2 and 100 characters.');
       return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!cleanEmail || !emailRegex.test(cleanEmail)) {
+      setErrorMessage('Please enter a valid campus email address.');
+      return;
+    }
+
+    if (role === 'student') {
+      if (!cleanStudentId) {
+        setErrorMessage('Please enter your School ID Number.');
+        return;
+      }
+      if (!cleanProgram) {
+        setErrorMessage('Please select your academic program.');
+        return;
+      }
+      if (!cleanYearLevel) {
+        setErrorMessage('Please select your year level.');
+        return;
+      }
+      if (!cleanSection) {
+        setErrorMessage('Please enter your class section.');
+        return;
+      }
+    } else {
+      if (!facultyId.trim()) {
+        setErrorMessage('Please enter your Faculty/Employee ID.');
+        return;
+      }
+      if (!department.trim()) {
+        setErrorMessage('Please select your department.');
+        return;
+      }
     }
 
     if (password.length < 8) {
@@ -57,25 +98,17 @@ export default function RegFormStudent({ onLogin, onSwitchToFaculty, onSubmit })
       return;
     }
 
-    if (role === 'student' && !studentId.trim()) {
-      setErrorMessage('Please enter your School ID Number.');
-      return;
-    }
-
-    if (role === 'faculty' && !facultyId.trim()) {
-      setErrorMessage('Please enter your Faculty/Employee ID.');
-      return;
-    }
-
     setErrorMessage('');
     setIsSubmitting(true);
 
     const formData = {
-      fullName,
-      email,
+      fullName: cleanFullName,
+      email: cleanEmail,
       role,
       password,
-      ...(role === 'student' ? { studentId, program, yearLevel, section } : { facultyId, department })
+      ...(role === 'student'
+        ? { studentId: cleanStudentId, program: cleanProgram, yearLevel: cleanYearLevel, section: cleanSection }
+        : { facultyId: facultyId.trim(), department: department.trim() }),
     };
 
     try {

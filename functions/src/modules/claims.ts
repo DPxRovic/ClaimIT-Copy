@@ -74,7 +74,7 @@ async function generateUniqueClaimTicket(reportId: string, mode: 'claim' | 'foun
 /**
  * Submits a new ownership claim or found match on an active campus listing.
  * Enforces authentication, active account status, report eligibility, non-empty proof,
- * and duplicate claim prevention.
+ * duplicate claim prevention, and atomic execution inside a Firestore transaction.
  */
 export const submitClaim = onCall(async (request: CallableRequest<SubmitClaimData>) => {
   const authCtx = assertActiveUser(request.auth);
@@ -107,140 +107,141 @@ export const submitClaim = onCall(async (request: CallableRequest<SubmitClaimDat
     }
   }
 
-  // Retrieve target parent report
   const reportRef = adminDb.collection('reports').doc(reportId);
-  const reportSnap = await reportRef.get();
-
-  if (!reportSnap.exists) {
-    throw new AppError('not-found', `Target report #${reportId} does not exist.`);
-  }
-
-  const reportData = reportSnap.data() || {};
-
-  // Verify report is eligible for claims
-  const currentReportStatus = reportData.status || 'Active';
-  if (currentReportStatus === 'Closed' || currentReportStatus === 'Resolved') {
-    throw new AppError(
-      'failed-precondition',
-      `This report is ${currentReportStatus.toLowerCase()} and cannot accept new claims or matches.`
-    );
-  }
-
-  // Prevent self-claim (cannot claim or match one's own report)
-  if (reportData.reporterUid === authCtx.uid) {
-    throw new AppError(
-      'failed-precondition',
-      'You cannot submit an ownership claim or match on your own report listing.'
-    );
-  }
-
-  // Prevent duplicate active claims by the same claimant on this report
-  const existingClaimQuery = await reportRef
-    .collection('claims')
-    .where('claimantUid', '==', authCtx.uid)
-    .where('status', 'in', ['Pending', 'Approved'])
-    .limit(1)
-    .get();
-
-  if (!existingClaimQuery.empty) {
-    throw new AppError(
-      'already-exists',
-      'You have already submitted an active claim or found report for this item. Please track it in My Claims.'
-    );
-  }
-
-  // Resolve claimant profile
-  const token = authCtx.token || {};
-  let claimantName = token.email ? (token.email as string).split('@')[0] : 'Campus Member';
-  let claimantRole = ((token.role as string) || 'student').toLowerCase();
-  claimantRole = claimantRole === 'admin' ? 'Admin' : claimantRole === 'faculty' ? 'Faculty' : 'Student';
-  let claimantEmail = (token.email as string) || '';
-
-  try {
-    const userDoc = await adminDb.collection('users').doc(authCtx.uid).get();
-    if (userDoc.exists) {
-      const userData = userDoc.data() || {};
-      claimantName = userData.fullName || claimantName;
-      claimantRole = userData.role ? (userData.role.charAt(0).toUpperCase() + userData.role.slice(1)) : claimantRole;
-      claimantEmail = userData.email || claimantEmail;
-    }
-  } catch (err) {
-    console.warn('[submitClaim] User profile lookup non-blocking warning:', err);
-  }
-
-  // Generate unique ticket number
   const ticketId = await generateUniqueClaimTicket(reportId, mode);
 
-  // Write claim and update parent report atomically
-  const claimRef = reportRef.collection('claims').doc();
-  const claimId = claimRef.id;
+  return await adminDb.runTransaction(async (transaction) => {
+    // -------------------------------------------------------------------------
+    // 1. All Transaction Reads First (Must precede any writes in Firestore)
+    // -------------------------------------------------------------------------
+    const reportSnap = await transaction.get(reportRef);
 
-  const claimDocument = {
-    id: claimId,
-    ticketId,
-    reportId,
-    reportTitle: reportData.title || reportData.itemName || 'Untitled Item',
-    reportType: reportData.type || 'FOUND',
-    reportLocation: reportData.location || '',
-    reportImageUrl: reportData.imageUrl || null,
-    reportCreatorUid: reportData.reporterUid,
-    posterName: reportData.reporterName || 'Campus Member',
-    claimantUid: authCtx.uid,
-    claimantName,
-    claimantRole,
-    claimantEmail,
-    mode,
-    status: 'Pending',
-    proofDetails,
-    attachmentUrls,
-    attachmentPaths,
-    attachmentNames,
-    attachmentSizes,
-    createdAt: FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp(),
-  };
+    if (!reportSnap.exists) {
+      throw new AppError('not-found', `Target report #${reportId} does not exist.`);
+    }
 
-  const batch = adminDb.batch();
+    const reportData = reportSnap.data() || {};
 
-  // 1. Create claim document
-  batch.set(claimRef, claimDocument);
+    // Verify report is eligible for claims
+    const currentReportStatus = reportData.status || 'Active';
+    if (currentReportStatus === 'Closed' || currentReportStatus === 'Resolved') {
+      throw new AppError(
+        'failed-precondition',
+        `This report is ${currentReportStatus.toLowerCase()} and cannot accept new claims or matches.`
+      );
+    }
 
-  // 2. Increment parent report claimsCount and advance status if Active
-  const reportUpdates: Record<string, unknown> = {
-    claimsCount: FieldValue.increment(1),
-    updatedAt: FieldValue.serverTimestamp(),
-  };
+    // Prevent self-claim (cannot claim or match one's own report)
+    if (reportData.reporterUid === authCtx.uid) {
+      throw new AppError(
+        'failed-precondition',
+        'You cannot submit an ownership claim or match on your own report listing.'
+      );
+    }
 
-  if (currentReportStatus === 'Active') {
-    reportUpdates.status = mode === 'found_report' ? 'Pending Match' : 'Pending Claim';
-  }
+    // Prevent duplicate active claims by the same claimant on this report
+    const existingClaimQuery = await reportRef
+      .collection('claims')
+      .where('claimantUid', '==', authCtx.uid)
+      .where('status', 'in', ['Pending', 'Approved'])
+      .limit(1)
+      .get();
 
-  batch.update(reportRef, reportUpdates);
+    if (!existingClaimQuery.empty) {
+      throw new AppError(
+        'already-exists',
+        'You have already submitted an active claim or found report for this item. Please track it in My Claims.'
+      );
+    }
 
-  // 3. Dispatch notification to parent report creator
-  const notificationRef = adminDb.collection('notifications').doc();
-  batch.set(notificationRef, {
-    id: notificationRef.id,
-    recipientUid: reportData.reporterUid,
-    title: mode === 'found_report' ? 'New Found Item Match' : 'New Ownership Claim',
-    description: `${claimantName} submitted a ${mode === 'found_report' ? 'match report' : 'claim'} on your listing "${reportData.title || 'Item'}" (${ticketId}).`,
-    ticketId,
-    reportId,
-    claimId,
-    unread: true,
-    createdAt: FieldValue.serverTimestamp(),
+    // Resolve claimant profile
+    const token = authCtx.token || {};
+    let claimantName = token.email ? (token.email as string).split('@')[0] : 'Campus Member';
+    let claimantRole = ((token.role as string) || 'student').toLowerCase();
+    claimantRole = claimantRole === 'admin' ? 'Admin' : claimantRole === 'faculty' ? 'Faculty' : 'Student';
+    let claimantEmail = (token.email as string) || '';
+
+    try {
+      const userSnap = await transaction.get(adminDb.collection('users').doc(authCtx.uid));
+      if (userSnap.exists) {
+        const userData = userSnap.data() || {};
+        claimantName = userData.fullName || claimantName;
+        claimantRole = userData.role ? (userData.role.charAt(0).toUpperCase() + userData.role.slice(1)) : claimantRole;
+        claimantEmail = userData.email || claimantEmail;
+      }
+    } catch (err) {
+      console.warn('[submitClaim] User profile lookup non-blocking warning:', err);
+    }
+
+    // -------------------------------------------------------------------------
+    // 2. All Transaction Writes (Follow all completed reads)
+    // -------------------------------------------------------------------------
+    const claimRef = reportRef.collection('claims').doc();
+    const claimId = claimRef.id;
+
+    const claimDocument = {
+      id: claimId,
+      ticketId,
+      reportId,
+      reportTitle: reportData.title || reportData.itemName || 'Untitled Item',
+      reportType: reportData.type || 'FOUND',
+      reportLocation: reportData.location || '',
+      reportImageUrl: reportData.imageUrl || null,
+      reportCreatorUid: reportData.reporterUid,
+      posterName: reportData.reporterName || 'Campus Member',
+      claimantUid: authCtx.uid,
+      claimantName,
+      claimantRole,
+      claimantEmail,
+      mode,
+      status: 'Pending',
+      proofDetails,
+      attachmentUrls,
+      attachmentPaths,
+      attachmentNames,
+      attachmentSizes,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+
+    // A. Create claim document
+    transaction.set(claimRef, claimDocument);
+
+    // B. Increment parent report claimsCount and advance status if Active
+    const reportUpdates: Record<string, unknown> = {
+      claimsCount: FieldValue.increment(1),
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+
+    if (currentReportStatus === 'Active') {
+      reportUpdates.status = mode === 'found_report' ? 'Pending Match' : 'Pending Claim';
+    }
+
+    transaction.update(reportRef, reportUpdates);
+
+    // C. Dispatch notification to parent report creator
+    const notificationRef = adminDb.collection('notifications').doc();
+    transaction.set(notificationRef, {
+      id: notificationRef.id,
+      recipientUid: reportData.reporterUid,
+      title: mode === 'found_report' ? 'New Found Item Match' : 'New Ownership Claim',
+      description: `${claimantName} submitted a ${mode === 'found_report' ? 'match report' : 'claim'} on your listing "${reportData.title || 'Item'}" (${ticketId}).`,
+      ticketId,
+      reportId,
+      claimId,
+      unread: true,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+
+    return {
+      success: true,
+      claimId,
+      ticketId,
+      status: 'Pending',
+      reportId,
+      message: `${mode === 'found_report' ? 'Found report' : 'Claim'} submitted successfully.`,
+    };
   });
-
-  await batch.commit();
-
-  return {
-    success: true,
-    claimId,
-    ticketId,
-    status: 'Pending',
-    reportId,
-    message: `${mode === 'found_report' ? 'Found report' : 'Claim'} submitted successfully.`,
-  };
 });
 
 /**
@@ -248,6 +249,7 @@ export const submitClaim = onCall(async (request: CallableRequest<SubmitClaimDat
  * Only the parent report creator or an authorized administrator can review.
  * When approved, atomically transitions report to Resolved, target claim to Approved,
  * and marks any competing pending claims as Declined.
+ * All reads strictly precede all writes to maintain transaction consistency.
  */
 export const reviewClaim = onCall(async (request: CallableRequest<ReviewClaimData>) => {
   const authCtx = assertActiveUser(request.auth);
@@ -274,6 +276,9 @@ export const reviewClaim = onCall(async (request: CallableRequest<ReviewClaimDat
   const claimRef = reportRef.collection('claims').doc(claimId);
 
   return await adminDb.runTransaction(async (transaction) => {
+    // -------------------------------------------------------------------------
+    // 1. All Transaction Reads First (Must precede any writes in Firestore)
+    // -------------------------------------------------------------------------
     const [reportSnap, claimSnap] = await Promise.all([
       transaction.get(reportRef),
       transaction.get(claimRef),
@@ -307,6 +312,15 @@ export const reviewClaim = onCall(async (request: CallableRequest<ReviewClaimDat
       );
     }
 
+    // Read all other pending claims on this report BEFORE any updates
+    const pendingClaimsSnap = await reportRef
+      .collection('claims')
+      .where('status', '==', 'Pending')
+      .get();
+
+    // -------------------------------------------------------------------------
+    // 2. All Transaction Writes (Follow all completed reads)
+    // -------------------------------------------------------------------------
     if (action === 'approve') {
       // Ensure report is not already resolved
       if (reportData.status === 'Resolved') {
@@ -315,7 +329,7 @@ export const reviewClaim = onCall(async (request: CallableRequest<ReviewClaimDat
 
       const defaultHandover = handoverLocation || 'Campus Lost & Found Office (Student Affairs / Security Desk)';
 
-      // 1. Approve target claim
+      // A. Approve target claim
       transaction.update(claimRef, {
         status: 'Approved',
         reviewedBy: authCtx.uid,
@@ -324,20 +338,15 @@ export const reviewClaim = onCall(async (request: CallableRequest<ReviewClaimDat
         updatedAt: FieldValue.serverTimestamp(),
       });
 
-      // 2. Resolve parent report
+      // B. Resolve parent report
       transaction.update(reportRef, {
         status: 'Resolved',
         resolvedClaimId: claimId,
         updatedAt: FieldValue.serverTimestamp(),
       });
 
-      // 3. Query competing pending claims and decline them
-      const competingClaimsSnap = await reportRef
-        .collection('claims')
-        .where('status', '==', 'Pending')
-        .get();
-
-      for (const compDoc of competingClaimsSnap.docs) {
+      // C. Update competing pending claims and send notifications
+      for (const compDoc of pendingClaimsSnap.docs) {
         if (compDoc.id !== claimId) {
           transaction.update(compDoc.ref, {
             status: 'Declined',
@@ -364,7 +373,7 @@ export const reviewClaim = onCall(async (request: CallableRequest<ReviewClaimDat
         }
       }
 
-      // 4. Send approval notification to winning claimant
+      // D. Send approval notification to winning claimant
       const approvedNotifRef = adminDb.collection('notifications').doc();
       transaction.set(approvedNotifRef, {
         id: approvedNotifRef.id,
@@ -378,7 +387,7 @@ export const reviewClaim = onCall(async (request: CallableRequest<ReviewClaimDat
         createdAt: FieldValue.serverTimestamp(),
       });
 
-      // 5. Activity log entry
+      // E. Activity log entry
       const logRef = adminDb.collection('activity_logs').doc();
       transaction.set(logRef, {
         id: logRef.id,
@@ -403,7 +412,7 @@ export const reviewClaim = onCall(async (request: CallableRequest<ReviewClaimDat
       // Action: Decline
       const defaultDecline = declineReason || 'Submitted proof did not match the item details.';
 
-      // 1. Decline target claim
+      // A. Decline target claim
       transaction.update(claimRef, {
         status: 'Declined',
         decisionReason: defaultDecline,
@@ -412,13 +421,8 @@ export const reviewClaim = onCall(async (request: CallableRequest<ReviewClaimDat
         updatedAt: FieldValue.serverTimestamp(),
       });
 
-      // 2. Check remaining pending claims. If none remain, revert report to 'Active'
-      const otherPendingQuery = await reportRef
-        .collection('claims')
-        .where('status', '==', 'Pending')
-        .get();
-
-      const remainingPending = otherPendingQuery.docs.filter((d) => d.id !== claimId);
+      // B. Check remaining pending claims from earlier read. If none remain, revert report to 'Active'
+      const remainingPending = pendingClaimsSnap.docs.filter((d) => d.id !== claimId);
       let newReportStatus = reportData.status;
 
       if (remainingPending.length === 0 && (reportData.status === 'Pending Claim' || reportData.status === 'Pending Match')) {
@@ -429,7 +433,7 @@ export const reviewClaim = onCall(async (request: CallableRequest<ReviewClaimDat
         });
       }
 
-      // 3. Send notification to claimant
+      // C. Send notification to claimant
       const declineNotifRef = adminDb.collection('notifications').doc();
       transaction.set(declineNotifRef, {
         id: declineNotifRef.id,
@@ -459,6 +463,8 @@ export const reviewClaim = onCall(async (request: CallableRequest<ReviewClaimDat
  * Withdraws a pending claim.
  * Only the claimant (or administrator) can withdraw their own pending claim.
  * Reverts report status to Active if no other pending claims remain.
+ * Decrements report claimsCount without ever falling below 0.
+ * All reads strictly precede all writes to maintain transaction consistency.
  */
 export const withdrawClaim = onCall(async (request: CallableRequest<WithdrawClaimData>) => {
   const authCtx = assertActiveUser(request.auth);
@@ -478,6 +484,9 @@ export const withdrawClaim = onCall(async (request: CallableRequest<WithdrawClai
   const claimRef = reportRef.collection('claims').doc(claimId);
 
   return await adminDb.runTransaction(async (transaction) => {
+    // -------------------------------------------------------------------------
+    // 1. All Transaction Reads First (Must precede any writes in Firestore)
+    // -------------------------------------------------------------------------
     const [reportSnap, claimSnap] = await Promise.all([
       transaction.get(reportRef),
       transaction.get(claimRef),
@@ -510,20 +519,24 @@ export const withdrawClaim = onCall(async (request: CallableRequest<WithdrawClai
       );
     }
 
-    // 1. Mark claim as Withdrawn
+    // Read other pending claims BEFORE any writes
+    const otherPendingQuery = await reportRef
+      .collection('claims')
+      .where('status', '==', 'Pending')
+      .get();
+
+    // -------------------------------------------------------------------------
+    // 2. All Transaction Writes (Follow all completed reads)
+    // -------------------------------------------------------------------------
+    // A. Mark claim as Withdrawn
     transaction.update(claimRef, {
       status: 'Withdrawn',
       decisionReason: reason,
       updatedAt: FieldValue.serverTimestamp(),
     });
 
-    // 2. Decrement claimsCount on report and check remaining pending claims
-    const currentClaimsCount = Math.max(0, (reportData.claimsCount || 1) - 1);
-    const otherPendingQuery = await reportRef
-      .collection('claims')
-      .where('status', '==', 'Pending')
-      .get();
-
+    // B. Decrement claimsCount on report and check remaining pending claims
+    const currentClaimsCount = Math.max(0, (Number(reportData.claimsCount) || 1) - 1);
     const remainingPending = otherPendingQuery.docs.filter((d) => d.id !== claimId);
     const reportUpdates: Record<string, unknown> = {
       claimsCount: currentClaimsCount,

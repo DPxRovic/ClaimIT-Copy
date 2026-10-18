@@ -55,14 +55,118 @@ export function formatAuthError(error) {
   }
 }
 
+// Pre-seeded verified demo accounts for offline / unprovisioned environments
+const DEMO_ACCOUNTS = new Map([
+  [
+    'student@campus.edu',
+    {
+      password: 'demo123456',
+      user: {
+        uid: 'demo-student-uid',
+        email: 'student@campus.edu',
+        displayName: 'Campus Student',
+        photoURL: null,
+      },
+      profile: {
+        uid: 'demo-student-uid',
+        email: 'student@campus.edu',
+        fullName: 'Campus Student',
+        role: 'student',
+        status: 'Active',
+        avatarUrl: null,
+        studentId: '2026-00123',
+        program: 'BS Computer Science',
+        yearLevel: '3rd Year',
+        section: 'CS-3A',
+      },
+    },
+  ],
+  [
+    'faculty@campus.edu',
+    {
+      password: 'demo123456',
+      user: {
+        uid: 'demo-faculty-uid',
+        email: 'faculty@campus.edu',
+        displayName: 'Prof. Santos',
+        photoURL: null,
+      },
+      profile: {
+        uid: 'demo-faculty-uid',
+        email: 'faculty@campus.edu',
+        fullName: 'Prof. Santos',
+        role: 'faculty',
+        status: 'Active',
+        avatarUrl: null,
+        facultyId: 'FAC-2026-101',
+        department: 'College of Science',
+      },
+    },
+  ],
+  [
+    'admin@campus.edu',
+    {
+      password: 'demo123456',
+      user: {
+        uid: 'demo-admin-uid',
+        email: 'admin@campus.edu',
+        displayName: 'Campus Admin',
+        photoURL: null,
+      },
+      profile: {
+        uid: 'demo-admin-uid',
+        email: 'admin@campus.edu',
+        fullName: 'Campus Admin',
+        role: 'admin',
+        status: 'Active',
+        avatarUrl: null,
+      },
+    },
+  ],
+  [
+    'suspended@campus.edu',
+    {
+      password: 'demo123456',
+      user: {
+        uid: 'demo-suspended-uid',
+        email: 'suspended@campus.edu',
+        displayName: 'Suspended User',
+        photoURL: null,
+      },
+      profile: {
+        uid: 'demo-suspended-uid',
+        email: 'suspended@campus.edu',
+        fullName: 'Suspended User',
+        role: 'student',
+        status: 'Suspended',
+        avatarUrl: null,
+      },
+    },
+  ],
+]);
+
 /**
  * Signs in a user with email and password, checks profile and active status.
  */
 export async function loginUser(email, password) {
   const cleanEmail = (email || '').trim().toLowerCase();
+  const cleanPassword = (password || '').trim();
+
+  // 1. Pre-flight validation: reject empty or whitespace-only inputs
+  if (!cleanEmail) {
+    const err = new Error('Please enter your username or campus email.');
+    err.code = 'auth/invalid-email';
+    throw err;
+  }
+
+  if (!cleanPassword) {
+    const err = new Error('Please enter your password.');
+    err.code = 'auth/missing-password';
+    throw err;
+  }
 
   try {
-    const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, password);
+    const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
     const uid = userCredential.user.uid;
 
     // Retrieve user profile from Firestore
@@ -80,12 +184,12 @@ export async function loginUser(email, password) {
           throw suspendedError;
         }
       } else {
-        // If profile does not exist yet (e.g. created outside callable), initialize fallback profile
+        // Safe default profile: NEVER assign 'admin' role automatically
         profile = {
           uid,
           email: cleanEmail,
           fullName: userCredential.user.displayName || cleanEmail.split('@')[0],
-          role: cleanEmail.includes('admin') ? 'admin' : 'student',
+          role: 'student', // SAFE DEFAULT
           status: 'Active',
           avatarUrl: userCredential.user.photoURL || null,
           createdAt: serverTimestamp(),
@@ -107,61 +211,57 @@ export async function loginUser(email, password) {
           uid,
           email: cleanEmail,
           fullName: userCredential.user.displayName || cleanEmail.split('@')[0],
-          role: cleanEmail.includes('admin') ? 'admin' : 'student',
+          role: 'student', // SAFE DEFAULT - NEVER 'admin'
           status: 'Active',
           avatarUrl: null,
         },
       };
     }
   } catch (authErr) {
-    const isMockCandidate =
+    // If genuine authentication failure, re-throw immediately
+    if (
+      authErr.code === 'auth/invalid-credential' ||
+      authErr.code === 'auth/wrong-password' ||
+      authErr.code === 'auth/user-not-found' ||
+      authErr.code === 'auth/user-disabled' ||
+      authErr.code === 'auth/too-many-requests' ||
+      authErr.code === 'auth/network-request-failed'
+    ) {
+      throw authErr;
+    }
+
+    const isUnprovisionedKey =
       authErr.code === 'auth/api-key-not-valid' ||
       authErr.code === 'auth/invalid-api-key' ||
       authErr.code === 'auth/configuration-not-found' ||
-      authErr.code === 'auth/network-request-failed' ||
-      authErr.message?.includes('API key not valid') ||
-      authErr.message?.includes('network-request-failed') ||
       auth.app.options.apiKey === 'demo-claimit-api-key';
 
-    if (isMockCandidate) {
-      console.warn('[AI Studio] Firebase Auth offline or using demo key — activating in-memory session');
-      const uid = 'mock-' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
-      const role = cleanEmail.includes('admin') ? 'admin' : cleanEmail.includes('faculty') ? 'faculty' : 'student';
-      const status = cleanEmail.includes('suspended')
-        ? 'Suspended'
-        : cleanEmail.includes('pending')
-        ? 'Pending approval'
-        : 'Active';
+    if (isUnprovisionedKey) {
+      // In offline/demo environment: authenticate against verified demo store
+      const demoAccount = DEMO_ACCOUNTS.get(cleanEmail);
+      if (!demoAccount) {
+        const notFoundErr = new Error('Invalid email or password. Please check your credentials and try again.');
+        notFoundErr.code = 'auth/user-not-found';
+        throw notFoundErr;
+      }
 
-      if (status === 'Suspended') {
+      if (demoAccount.password !== cleanPassword) {
+        const wrongPwErr = new Error('Invalid email or password. Please check your credentials and try again.');
+        wrongPwErr.code = 'auth/wrong-password';
+        throw wrongPwErr;
+      }
+
+      if (demoAccount.profile.status === 'Suspended') {
         const suspendedError = new Error('This account has been suspended by campus administration. Please contact Student Affairs.');
         suspendedError.code = 'auth/user-disabled';
         throw suspendedError;
       }
 
-      const mockUser = {
-        uid,
-        email: cleanEmail,
-        displayName: cleanEmail.split('@')[0],
-        photoURL: null,
+      return {
+        user: demoAccount.user,
+        profile: demoAccount.profile,
+        _isMock: true,
       };
-
-      const mockProfile = {
-        uid,
-        email: cleanEmail,
-        fullName: cleanEmail.split('@')[0],
-        role,
-        status,
-        avatarUrl: null,
-        studentId: role === 'student' ? '2026-00123' : undefined,
-        program: role === 'student' ? 'BS Computer Science' : undefined,
-        yearLevel: role === 'student' ? '3rd Year' : undefined,
-        section: role === 'student' ? 'CS-3A' : undefined,
-        facultyId: role === 'faculty' ? 'FAC-2026-101' : undefined,
-        department: role === 'faculty' ? 'College of Science' : undefined,
-      };
-
-      return { user: mockUser, profile: mockProfile, _isMock: true };
     }
 
     throw authErr;
@@ -172,14 +272,67 @@ export async function loginUser(email, password) {
  * Registers a new user.
  * Attempts privileged Cloud Function `registerUser` first.
  * Falls back to client-side auth + Firestore setDoc if functions are not reachable.
+ * Implements strict input validation, role boundaries, and partial failure rollback.
  */
 export async function registerUser(formData) {
+  if (!formData || typeof formData !== 'object') {
+    throw new Error('Registration data is required.');
+  }
+
   const cleanEmail = (formData.email || '').trim().toLowerCase();
   const fullName = (formData.fullName || '').trim();
+  const password = formData.password || '';
   const role = formData.role || 'student';
 
+  // 1. Comprehensive input validation
+  if (!fullName) {
+    throw new Error('Please enter your full name.');
+  }
+  if (fullName.length < 2 || fullName.length > 100) {
+    throw new Error('Full Name must be between 2 and 100 characters.');
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!cleanEmail || !emailRegex.test(cleanEmail)) {
+    const emailErr = new Error('Please enter a valid campus email address.');
+    emailErr.code = 'auth/invalid-email';
+    throw emailErr;
+  }
+
+  if (!password || password.length < 8) {
+    const pwErr = new Error('Password must be at least 8 characters long.');
+    pwErr.code = 'auth/weak-password';
+    throw pwErr;
+  }
+
+  // Prevent self-registration of privileged roles
+  if (role === 'admin' || (formData.role && String(formData.role).toLowerCase().includes('admin'))) {
+    throw new Error('Public registration for administrators is not allowed.');
+  }
+
+  if (role !== 'student' && role !== 'faculty') {
+    throw new Error('Invalid account role. Must be student or faculty.');
+  }
+
+  // Role-specific required fields
+  if (role === 'student') {
+    const studentId = (formData.studentId || '').trim();
+    const program = (formData.program || '').trim();
+    const yearLevel = (formData.yearLevel || '').trim();
+    const section = (formData.section || '').trim();
+    if (!studentId) throw new Error('Please enter your School ID Number.');
+    if (!program) throw new Error('Please select your academic program.');
+    if (!yearLevel) throw new Error('Please select your year level.');
+    if (!section) throw new Error('Please enter your class section.');
+  } else {
+    const facultyId = (formData.facultyId || '').trim();
+    const department = (formData.department || '').trim();
+    if (!facultyId) throw new Error('Please enter your Faculty/Employee ID Number.');
+    if (!department) throw new Error('Please select your department.');
+  }
+
   try {
-    // 1. Preferred path: Callable Cloud Function
+    // 2. Preferred path: Callable Cloud Function
     const registerCallable = httpsCallable(functions, 'registerUser');
     const result = await registerCallable({
       ...formData,
@@ -191,8 +344,8 @@ export async function registerUser(formData) {
     const response = result.data;
 
     // Automatically sign in students upon registration
-    if (role === 'student' && formData.password) {
-      await signInWithEmailAndPassword(auth, cleanEmail, formData.password);
+    if (role === 'student' && password) {
+      await signInWithEmailAndPassword(auth, cleanEmail, password);
     }
 
     return response;
@@ -212,12 +365,16 @@ export async function registerUser(formData) {
     console.info('[Auth] Cloud Function unavailable, executing client-side registration fallback.');
 
     try {
-      // 2. Fallback path: client-side Firebase Auth + Firestore
-      const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, formData.password);
+      // 3. Fallback path: client-side Firebase Auth + Firestore
+      const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
       const uid = userCredential.user.uid;
 
       if (fullName) {
-        await updateProfile(userCredential.user, { displayName: fullName });
+        try {
+          await updateProfile(userCredential.user, { displayName: fullName });
+        } catch (profileErr) {
+          console.warn('[Auth] Display name update warning:', profileErr);
+        }
       }
 
       const initialStatus = role === 'student' ? 'Active' : 'Pending approval';
@@ -230,20 +387,47 @@ export async function registerUser(formData) {
         avatarUrl: null,
         ...(role === 'student'
           ? {
-              studentId: formData.studentId || '',
-              program: formData.program || '',
-              yearLevel: formData.yearLevel || '1st Year',
-              section: formData.section || '',
+              studentId: (formData.studentId || '').trim(),
+              program: (formData.program || '').trim(),
+              yearLevel: (formData.yearLevel || '').trim() || '1st Year',
+              section: (formData.section || '').trim(),
             }
           : {
-              facultyId: formData.facultyId || '',
-              department: formData.department || '',
+              facultyId: (formData.facultyId || '').trim(),
+              department: (formData.department || '').trim(),
             }),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
 
-      await setDoc(doc(db, 'users', uid), profile);
+      // Attempt to save profile to Firestore with retry
+      let profileSaved = false;
+      try {
+        await setDoc(doc(db, 'users', uid), profile);
+        profileSaved = true;
+      } catch (firstErr) {
+        console.warn('[Auth] First profile write attempt failed, retrying once...', firstErr);
+        try {
+          await setDoc(doc(db, 'users', uid), profile);
+          profileSaved = true;
+        } catch (retryErr) {
+          console.error('[Auth] Profile write retry also failed:', retryErr);
+        }
+      }
+
+      // Handle partial failure: roll back auth account if profile write fails
+      if (!profileSaved) {
+        console.error('[Auth] Partial failure: Auth account created but Firestore profile write failed. Rolling back auth user...');
+        try {
+          await userCredential.user.delete();
+        } catch (deleteErr) {
+          console.warn('[Auth] Could not delete user during rollback, signing out:', deleteErr);
+          await signOut(auth);
+        }
+        const partialErr = new Error('Database profile creation failed. Registration was safely rolled back. Please try again.');
+        partialErr.code = 'firestore/profile-failed';
+        throw partialErr;
+      }
 
       return {
         success: true,
@@ -252,17 +436,26 @@ export async function registerUser(formData) {
         status: initialStatus,
       };
     } catch (clientErr) {
-      const isMockCandidate =
+      if (clientErr.code === 'firestore/profile-failed' || clientErr.code === 'auth/email-already-in-use') {
+        throw clientErr;
+      }
+
+      const isUnprovisionedKey =
         clientErr.code === 'auth/api-key-not-valid' ||
         clientErr.code === 'auth/invalid-api-key' ||
         clientErr.code === 'auth/configuration-not-found' ||
-        clientErr.code === 'auth/network-request-failed' ||
-        clientErr.message?.includes('API key not valid') ||
         auth.app.options.apiKey === 'demo-claimit-api-key';
 
-      if (isMockCandidate) {
-        console.warn('[AI Studio] Firebase Auth offline or using demo key — registering in-memory session');
-        const uid = 'mock-' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
+      if (isUnprovisionedKey) {
+        // Check duplicate registration in demo store
+        if (DEMO_ACCOUNTS.has(cleanEmail)) {
+          const dupErr = new Error('An account with this email address already exists. Please log in instead.');
+          dupErr.code = 'auth/email-already-in-use';
+          throw dupErr;
+        }
+
+        console.warn('[AI Studio] Firebase Auth offline or using demo key — registering in verified demo store');
+        const uid = 'demo-' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
         const initialStatus = role === 'student' ? 'Active' : 'Pending approval';
         const mockUser = {
           uid,
@@ -279,16 +472,24 @@ export async function registerUser(formData) {
           avatarUrl: null,
           ...(role === 'student'
             ? {
-                studentId: formData.studentId || '',
-                program: formData.program || '',
-                yearLevel: formData.yearLevel || '1st Year',
-                section: formData.section || '',
+                studentId: (formData.studentId || '').trim(),
+                program: (formData.program || '').trim(),
+                yearLevel: (formData.yearLevel || '').trim() || '1st Year',
+                section: (formData.section || '').trim(),
               }
             : {
-                facultyId: formData.facultyId || '',
-                department: formData.department || '',
+                facultyId: (formData.facultyId || '').trim(),
+                department: (formData.department || '').trim(),
               }),
         };
+
+        // Record registered user so subsequent logins with this email/password succeed
+        DEMO_ACCOUNTS.set(cleanEmail, {
+          password,
+          user: mockUser,
+          profile: mockProfile,
+        });
+
         return {
           success: true,
           uid,
@@ -299,6 +500,7 @@ export async function registerUser(formData) {
           _isMock: true,
         };
       }
+
       throw clientErr;
     }
   }

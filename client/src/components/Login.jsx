@@ -34,7 +34,7 @@ export default function Login({ onForgotPassword, onRegister, onLoginSuccess }) 
       return;
     }
 
-    if (!password) {
+    if (!password || !password.trim()) {
       setErrorMessage('Please enter your password.');
       return;
     }
@@ -120,7 +120,7 @@ export default function Login({ onForgotPassword, onRegister, onLoginSuccess }) 
             setInternalView('login');
             setTimeout(() => setSubmittedMessage(null), 5000);
           } catch (resetErr) {
-            setSubmittedMessage(resetErr.message || 'Could not send reset email.');
+            setErrorMessage(resetErr.message || 'Could not send reset email.');
             setInternalView('login');
           }
         }}

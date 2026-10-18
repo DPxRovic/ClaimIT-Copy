@@ -26,22 +26,33 @@ export default function RegFormFaculty({ onLogin, onSwitchToStudent, onSubmit })
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!fullName.trim()) {
+    const cleanFullName = fullName.trim();
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanFacultyId = facultyId.trim();
+    const cleanDepartment = department.trim();
+
+    if (!cleanFullName) {
       setErrorMessage('Please enter your full name.');
       return;
     }
 
-    if (!email.trim() || !email.includes('@')) {
-      setErrorMessage('Please enter a valid email address.');
+    if (cleanFullName.length < 2 || cleanFullName.length > 100) {
+      setErrorMessage('Full Name must be between 2 and 100 characters.');
       return;
     }
 
-    if (!facultyId.trim()) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!cleanEmail || !emailRegex.test(cleanEmail)) {
+      setErrorMessage('Please enter a valid campus email address.');
+      return;
+    }
+
+    if (!cleanFacultyId) {
       setErrorMessage('Please enter your Faculty/Employee ID Number.');
       return;
     }
 
-    if (!department) {
+    if (!cleanDepartment) {
       setErrorMessage('Please select your department.');
       return;
     }
@@ -60,11 +71,11 @@ export default function RegFormFaculty({ onLogin, onSwitchToStudent, onSubmit })
     setIsSubmitting(true);
 
     const formData = {
-      fullName,
-      email,
+      fullName: cleanFullName,
+      email: cleanEmail,
       role: 'faculty',
-      facultyId,
-      department,
+      facultyId: cleanFacultyId,
+      department: cleanDepartment,
       password,
     };
 

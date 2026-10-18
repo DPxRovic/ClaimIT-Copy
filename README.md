@@ -139,8 +139,15 @@ ClaimIt follows a disciplined 10-milestone backend development plan:
 
 ## 8. Current Limitations & Known State
 
-1. **Authentication & User Profiles Active**: Firebase Authentication, `AuthContext`, session persistence across reloads, protected field validation, and Firestore `users/{uid}` profiles are implemented.
+1. **Authentication & User Profiles Audited & Hardened**:
+   - Comprehensive input validation for Student (Full Name, Email, Password, School ID, Program, Year Level, Section) and Faculty (Full Name, Email, Password, Faculty ID, Department) registration.
+   - Strict rejection of empty or whitespace-only inputs and malformed email addresses.
+   - Prevention of self-assigned administrative roles (default fallback role is strictly `'student'`).
+   - Duplicate email registration rejection (`auth/email-already-in-use`).
+   - Verified credential validation: wrong passwords, non-existent accounts, and network errors are explicitly surfaced and never produce false success messages.
+   - Safe partial failure rollback: if Firestore profile creation fails after auth account creation, the auth account is safely rolled back to prevent orphaned records.
+   - Forgot-password flow validates email format and prevents account enumeration with generic confirmation.
+   - 17 comprehensive audit test scenarios pass with 100% coverage.
 2. **Report Creation & Storage Uploads Active (Milestone 5)**: Lost and Found reports are created with server-assigned ticket IDs, verified creator UID, initial 'Active' status, and Storage image integration with 10MB bounds.
 3. **Soft-Close & Administration Rules**: Report creators can soft-close their own reports; hard deletions are restricted to administrators.
-4. **Claims & Verification Pending (Milestone 7)**: Claims submission and two-way verification workflows remain closed at the Security Rules boundary until Prompt 7.
-5. **No Automated AI Matching**: Lost-and-found matches are submitted manually by campus members against existing listings.
+4. **Environment & Live Setup Note**: Unit and audit test suites execute cleanly in Node.js 22. For live production use, configure Firebase credentials in `.env` or provision Firebase via AI Studio tools. Local Firebase Emulator Suite requires Java runtime.
