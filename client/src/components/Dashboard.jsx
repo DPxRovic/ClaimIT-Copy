@@ -235,6 +235,8 @@ export const INITIAL_ACCOUNTS = [
   },
 ];
 
+import { subscribeUsers, manageAccountStatusService } from '../firebase/admin.js';
+
 const ITEMS_PER_PAGE = 4;
 
 export default function Dashboard({
@@ -246,6 +248,7 @@ export default function Dashboard({
 }) {
   // Master state for accounts
   const [accounts, setAccounts] = useState(INITIAL_ACCOUNTS);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Search & Filters state
   const [searchQuery, setSearchQuery] = useState('');
@@ -260,10 +263,70 @@ export default function Dashboard({
   // Add Account modal state
   const [isAddOpen, setIsAddOpen] = useState(false);
 
+  // Subscribe to real users from Firestore
+  useEffect(() => {
+    setIsLoading(true);
+    const unsubscribe = subscribeUsers({
+      onUpdate: (fetchedUsers) => {
+        if (fetchedUsers && fetchedUsers.length > 0) {
+          const mapped = fetchedUsers.map((u, idx) => {
+            const role = u.role === 'Faculty' ? 'Faculty' : 'Students';
+            const initials = u.name
+              ? u.name
+                  .replace(/Dr\.|Prof\.|Engr\./g, '')
+                  .trim()
+                  .split(' ')
+                  .filter(Boolean)
+                  .map((p) => p[0])
+                  .slice(0, 2)
+                  .join('')
+                  .toUpperCase()
+              : 'U';
+
+            const colors = ['#0d9488', '#0284c7', '#7c3aed', '#2563eb', '#db2777', '#059669', '#4f46e5', '#ea580c', '#0891b2'];
+            const avatarColor = colors[idx % colors.length];
+
+            return {
+              id: u.uid || u.id,
+              name: u.name,
+              email: u.email,
+              username: u.email ? u.email.split('@')[0] : 'user',
+              idNumber: u.schoolId || `#ID-${u.id.slice(0, 6)}`,
+              role,
+              department: u.program || 'Campus Member',
+              position: u.section || (role === 'Faculty' ? 'Professor' : 'Undergraduate'),
+              campus: 'Congress Campus',
+              status: u.status || 'Active',
+              joined: u.joined || 'Recently',
+              initials,
+              avatarColor,
+              stats: {
+                reports: 0,
+                claims: 0,
+                resolved: 0,
+                chats: 0,
+              },
+            };
+          });
+          setAccounts(mapped);
+        }
+        setIsLoading(false);
+      },
+      onError: (err) => {
+        console.warn('Dashboard subscribeUsers error:', err);
+        setIsLoading(false);
+      },
+    });
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, []);
+
   // Calculate live statistics
   const stats = useMemo(() => {
     const total = accounts.length;
-    const students = accounts.filter((a) => a.role === 'Students').length;
+    const students = accounts.filter((a) => a.role === 'Students' || a.role === 'Student').length;
     const faculty = accounts.filter((a) => a.role === 'Faculty').length;
     const awaitingFaculty = accounts.filter(
       (a) => a.role === 'Faculty' && a.status === 'Pending approval'
@@ -316,8 +379,17 @@ export default function Dashboard({
     });
   };
 
-  // 2. In 'manage', "Approve account" -> update state live, open 'approved'
-  const handleApproveAccount = (accountToApprove) => {
+  // 2. In 'manage', "Approve account" -> invoke manageAccountStatus, open 'approved'
+  const handleApproveAccount = async (accountToApprove) => {
+    try {
+      await manageAccountStatusService({
+        targetUid: accountToApprove.id,
+        action: 'approve_faculty',
+      });
+    } catch (err) {
+      console.warn('Dashboard approve faculty error:', err);
+    }
+
     const updatedAccount = {
       ...accountToApprove,
       status: 'Active',
@@ -353,8 +425,18 @@ export default function Dashboard({
     }
   };
 
-  // 5. In 'decline', "Decline Account" -> update state live, open 'declined'
-  const handleConfirmDecline = ({ account, reason, note }) => {
+  // 5. In 'decline', "Decline Account" -> invoke manageAccountStatus, open 'declined'
+  const handleConfirmDecline = async ({ account, reason, note }) => {
+    try {
+      await manageAccountStatusService({
+        targetUid: account.id,
+        action: 'decline_faculty',
+        reason: reason || note || 'Declined from Dashboard',
+      });
+    } catch (err) {
+      console.warn('Dashboard decline faculty error:', err);
+    }
+
     const updatedAccount = {
       ...account,
       status: 'Declined',

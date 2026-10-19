@@ -551,6 +551,22 @@ export const withdrawClaim = onCall(async (request: CallableRequest<WithdrawClai
 
     transaction.update(reportRef, reportUpdates);
 
+    // C. Dispatch notification to parent report creator
+    if (reportData.reporterUid) {
+      const withdrawNotifRef = adminDb.collection('notifications').doc();
+      transaction.set(withdrawNotifRef, {
+        id: withdrawNotifRef.id,
+        recipientUid: reportData.reporterUid,
+        title: 'Claim Withdrawn',
+        description: `Claim (${claimData.ticketId}) on listing "${reportData.title || 'Item'}" was withdrawn by the claimant.`,
+        ticketId: claimData.ticketId,
+        reportId,
+        claimId,
+        unread: true,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    }
+
     return {
       success: true,
       claimId,

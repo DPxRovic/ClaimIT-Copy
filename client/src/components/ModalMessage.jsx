@@ -5,6 +5,8 @@ import {
   Paperclip,
   ShieldCheck,
 } from 'lucide-react';
+import { subscribeClaimMessages, sendClaimMessage } from '../firebase/messaging.js';
+import { useAuth } from '../context/AuthContext.jsx';
 
 /**
  * ModalMessage Component
@@ -15,13 +17,7 @@ import {
  * - Avatar with initials and green online status dot
  * - Campus safety notice
  * - Bottom input with paperclip and send button
- *
- * Props:
- * - isOpen: boolean
- * - claim: Claim object
- * - messages: Array of chat messages
- * - onSendMessage: (claimId: string, text: string) => void
- * - onClose: () => void
+ * - Persistent real-time Firestore synchronization
  */
 export const ModalMessage = ({
   isOpen = true,
@@ -30,9 +26,37 @@ export const ModalMessage = ({
   onSendMessage,
   onClose,
 }) => {
+  const { currentUser } = useAuth();
   const modalCardRef = useRef(null);
   const previousFocusRef = useRef(null);
   const [inputText, setInputText] = useState('');
+  const [liveMessages, setLiveMessages] = useState([]);
+
+  const reportId = claim?.reportId || claim?.parentReportId;
+  const claimId = claim?.claimId || claim?.id;
+
+  // Real-time Firestore subscription to conversation thread
+  useEffect(() => {
+    if (!isOpen || !claim) return;
+    if (!reportId || !claimId) return;
+
+    const unsubscribe = subscribeClaimMessages(
+      reportId,
+      claimId,
+      (msgs) => {
+        if (msgs && msgs.length > 0) {
+          setLiveMessages(msgs);
+        }
+      },
+      (err) => {
+        console.warn('ModalMessage subscription warning:', err);
+      }
+    );
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [isOpen, claim, reportId, claimId]);
 
   // Focus and Escape key handling
   useEffect(() => {
@@ -78,14 +102,22 @@ export const ModalMessage = ({
     .join('');
 
   const displayMessages =
-    messages.length > 0
+    liveMessages.length > 0
+      ? liveMessages.map((m) => ({
+          id: m.id,
+          sender: (m.senderUid === currentUser?.uid || m.senderName === 'You') ? 'user' : 'contact',
+          senderName: m.senderName,
+          text: m.text,
+          timestamp: m.timestamp,
+        }))
+      : messages.length > 0
       ? messages
       : [
           {
             id: 'm1',
             sender: 'contact',
             senderName: contactName,
-            text: `Hi Lia! I saw your claim was approved with the exact description of the '${claim.title}'. I have it with me on campus today!`,
+            text: `Hi! I saw your claim was approved with the exact description of the '${claim.title}'. I have it with me on campus today!`,
             timestamp: '10:24 AM',
           },
           {
@@ -97,11 +129,29 @@ export const ModalMessage = ({
           },
         ];
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!inputText.trim()) return;
-    onSendMessage?.(claim.id, inputText.trim());
+    const textToSend = inputText.trim();
+    if (!textToSend) return;
+
     setInputText('');
+
+    if (reportId && claimId) {
+      try {
+        await sendClaimMessage({
+          reportId,
+          claimId,
+          text: textToSend,
+          senderUid: currentUser?.uid,
+          senderName: currentUser?.displayName || 'You',
+          senderRole: currentUser?.role || 'Student',
+        });
+      } catch (err) {
+        console.warn('Failed to send persistent message:', err);
+      }
+    }
+
+    onSendMessage?.(claim.id, textToSend);
   };
 
   const handleBackdropClick = (e) => {

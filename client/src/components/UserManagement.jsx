@@ -1,180 +1,20 @@
-import React, { useState, useMemo } from 'react';
-
-const INITIAL_ALL_USERS = [
-  {
-    id: 'u-1',
-    name: 'Crystal Florano',
-    email: 'florano.crystal@campus.edu',
-    avatarBg: 'bg-[#e11d48]',
-    role: 'Student',
-    program: 'BS Nursing',
-    section: '1st Year, Section 1C',
-    status: 'Active',
-    joined: 'Jul 26',
-  },
-  {
-    id: 'u-2',
-    name: 'Alyssa Cruz',
-    email: 'cruz.alyssa@campus.edu',
-    avatarBg: 'bg-[#ea580c]',
-    role: 'Student',
-    program: 'BS Education',
-    section: '2nd Year, Section 2D',
-    status: 'Active',
-    joined: 'Aug 13',
-  },
-  {
-    id: 'u-3',
-    name: 'Aedri Mangulabnan',
-    email: 'mangulaban.aedri@campus.edu',
-    avatarBg: 'bg-[#9333ea]',
-    role: 'Student',
-    program: 'BS Psychology',
-    section: '1st Year, Section 1B',
-    status: 'Suspended',
-    joined: 'Aug 3',
-  },
-  {
-    id: 'u-4',
-    name: 'Joshua Santiago',
-    email: 'santiago.joshua@campus.edu',
-    avatarBg: 'bg-[#2563eb]',
-    role: 'Student',
-    program: 'BS Accountancy',
-    section: '2nd Year, Section 2B',
-    status: 'Active',
-    joined: 'Sep 01',
-  },
-  {
-    id: 'u-5',
-    name: 'Rovic Rosales',
-    email: 'rosales.rovic@campus.edu',
-    avatarBg: 'bg-[#0d9488]',
-    role: 'Student',
-    program: 'BS Computer Science',
-    section: '3rd Year, Section 3B',
-    status: 'Active',
-    joined: 'Sep 10',
-  },
-  {
-    id: 'u-6',
-    name: 'Sam Aquino',
-    email: 'aquino.sam@campus.edu',
-    avatarBg: 'bg-[#4f46e5]',
-    role: 'Staff',
-    program: 'Campus Administration',
-    section: 'Office of Student Affairs',
-    status: 'Active',
-    joined: 'Jun 15',
-  },
-  {
-    id: 'u-7',
-    name: 'Maria Santos',
-    email: 'santos.maria@campus.edu',
-    avatarBg: 'bg-[#0891b2]',
-    role: 'Student',
-    program: 'BS Information Technology',
-    section: '2nd Year, Section 2A',
-    status: 'Active',
-    joined: 'Aug 22',
-  },
-  {
-    id: 'u-8',
-    name: 'Juan Dela Cruz',
-    email: 'delacruz.juan@campus.edu',
-    avatarBg: 'bg-[#b91c1c]',
-    role: 'Student',
-    program: 'BS Criminology',
-    section: '4th Year, Section 4A',
-    status: 'Suspended',
-    joined: 'Jul 10',
-  },
-  {
-    id: 'u-9',
-    name: 'Patricia Gomez',
-    email: 'gomez.patricia@campus.edu',
-    avatarBg: 'bg-[#7c3aed]',
-    role: 'Student',
-    program: 'BA Communication',
-    section: '1st Year, Section 1A',
-    status: 'Active',
-    joined: 'Aug 29',
-  },
-  {
-    id: 'u-10',
-    name: 'Prof. Mark Rhicky Raby',
-    email: 'raby.mark@campus.edu',
-    avatarBg: 'bg-[#059669]',
-    role: 'Faculty',
-    program: 'College of Arts and Sciences',
-    section: 'Associate Professor',
-    status: 'Active',
-    joined: 'Sep 10',
-  },
-];
-
-const INITIAL_PENDING_USERS = [
-  {
-    id: 'p-1',
-    name: 'Dr. Miguel Aquino',
-    email: 'miguel.aquino@campus.edu',
-    avatarBg: 'bg-[#0d9488]',
-    role: 'Faculty',
-    program: 'College of Nursing',
-    section: 'Professor',
-    status: 'Pending approval',
-    joined: 'Sep 13, 2026',
-    username: '@m.aquino',
-  },
-  {
-    id: 'p-2',
-    name: 'Ariana Grande',
-    email: 'grande.ariana@campus.edu',
-    avatarBg: 'bg-[#0d9488]',
-    role: 'Faculty',
-    program: 'College of Engineering',
-    section: 'Professor',
-    status: 'Pending approval',
-    joined: 'Sep 14, 2026',
-    username: '@a.grande',
-  },
-  {
-    id: 'p-3',
-    name: 'Dr. Roberto Mendoza',
-    email: 'mendoza.roberto@campus.edu',
-    avatarBg: 'bg-[#0d9488]',
-    role: 'Faculty',
-    program: 'College of Business',
-    section: 'Assistant Professor',
-    status: 'Pending approval',
-    joined: 'Sep 15, 2026',
-    username: '@r.mendoza',
-  },
-  {
-    id: 'p-4',
-    name: 'Engr. Teresa Lopez',
-    email: 'lopez.teresa@campus.edu',
-    avatarBg: 'bg-[#0d9488]',
-    role: 'Faculty',
-    program: 'College of Engineering',
-    section: 'Instructor I',
-    status: 'Pending approval',
-    joined: 'Sep 16, 2026',
-    username: '@t.lopez',
-  },
-];
+import React, { useState, useMemo, useEffect } from 'react';
+import { subscribeUsers, manageAccountStatusService } from '../firebase/admin.js';
 
 export default function UserManagement() {
   const [activeSubtab, setActiveSubtab] = useState('all'); // 'all' | 'pending'
-  const [allUsers, setAllUsers] = useState(INITIAL_ALL_USERS);
-  const [pendingUsers, setPendingUsers] = useState(INITIAL_PENDING_USERS);
+  const [usersList, setUsersList] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [actionSuccessMessage, setActionSuccessMessage] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('All Roles');
   const [statusFilter, setStatusFilter] = useState('All Statuses');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 6;
+  const itemsPerPage = 8;
 
   // Manage Action Modal / Dialog state
   const [managingUser, setManagingUser] = useState(null);
@@ -184,6 +24,37 @@ export default function UserManagement() {
   const [newUserRole, setNewUserRole] = useState('Student');
   const [newUserProgram, setNewUserProgram] = useState('');
   const [newUserSection, setNewUserSection] = useState('');
+
+  // Subscribe to real users from Firestore
+  useEffect(() => {
+    setIsLoading(true);
+    setError(null);
+
+    const unsubscribe = subscribeUsers({
+      onUpdate: (fetchedUsers) => {
+        setUsersList(fetchedUsers);
+        setIsLoading(false);
+      },
+      onError: (err) => {
+        console.warn('Failed to subscribe users:', err);
+        setError(err.message || 'Permission denied or failed to load users from database.');
+        setIsLoading(false);
+      },
+    });
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, []);
+
+  // Partition users into All vs Pending Approvals
+  const allUsers = useMemo(() => {
+    return usersList.filter((u) => u.status !== 'Pending approval');
+  }, [usersList]);
+
+  const pendingUsers = useMemo(() => {
+    return usersList.filter((u) => u.status === 'Pending approval');
+  }, [usersList]);
 
   // Subtabs configuration matching ManageLists design cohesiveness
   const subtabs = [
@@ -210,9 +81,9 @@ export default function UserManagement() {
       const q = searchQuery.toLowerCase().trim();
       const matchesSearch =
         !q ||
-        user.name.toLowerCase().includes(q) ||
-        user.email.toLowerCase().includes(q) ||
-        user.program.toLowerCase().includes(q);
+        (user.name && user.name.toLowerCase().includes(q)) ||
+        (user.email && user.email.toLowerCase().includes(q)) ||
+        (user.program && user.program.toLowerCase().includes(q));
 
       const matchesRole =
         roleFilter === 'All Roles' || user.role.toLowerCase() === roleFilter.toLowerCase();
@@ -232,36 +103,68 @@ export default function UserManagement() {
     currentPage * itemsPerPage
   );
 
-  // Handlers
-  const handleApprovePending = (userId) => {
-    const userToApprove = pendingUsers.find((u) => u.id === userId);
-    if (!userToApprove) return;
-    const approvedUser = {
-      ...userToApprove,
-      status: 'Active',
-      joined: 'Today',
-    };
-    setPendingUsers((prev) => prev.filter((u) => u.id !== userId));
-    setAllUsers((prev) => [approvedUser, ...prev]);
-    setManagingUser(null);
+  // Administrative Actions wired to Cloud Function manageAccountStatus
+  const handleApprovePending = async (userId) => {
+    setIsProcessing(true);
+    setError(null);
+    try {
+      const res = await manageAccountStatusService({
+        targetUid: userId,
+        action: 'approve_faculty',
+      });
+      setActionSuccessMessage(`Faculty account approved successfully.`);
+      setTimeout(() => setActionSuccessMessage(null), 4000);
+      setManagingUser(null);
+    } catch (err) {
+      console.error('Failed to approve faculty:', err);
+      setError(err.message || 'Failed to approve faculty account.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
-  const handleDeclinePending = (userId) => {
-    setPendingUsers((prev) => prev.filter((u) => u.id !== userId));
-    setManagingUser(null);
+  const handleDeclinePending = async (userId) => {
+    setIsProcessing(true);
+    setError(null);
+    try {
+      await manageAccountStatusService({
+        targetUid: userId,
+        action: 'decline_faculty',
+        reason: 'Declined during administrative review',
+      });
+      setActionSuccessMessage(`Faculty account declined.`);
+      setTimeout(() => setActionSuccessMessage(null), 4000);
+      setManagingUser(null);
+    } catch (err) {
+      console.error('Failed to decline faculty:', err);
+      setError(err.message || 'Failed to decline faculty account.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
-  const handleToggleUserStatus = (userId) => {
-    setAllUsers((prev) =>
-      prev.map((u) => {
-        if (u.id === userId) {
-          const nextStatus = u.status === 'Active' ? 'Suspended' : 'Active';
-          return { ...u, status: nextStatus };
-        }
-        return u;
-      })
-    );
-    setManagingUser(null);
+  const handleToggleUserStatus = async (userId) => {
+    if (!managingUser) return;
+    const isSuspending = managingUser.status === 'Active';
+    setIsProcessing(true);
+    setError(null);
+    try {
+      await manageAccountStatusService({
+        targetUid: userId,
+        action: isSuspending ? 'suspend_user' : 'activate_user',
+        reason: isSuspending ? 'Suspended by campus administrator' : 'Reactivated by administrator',
+      });
+      setActionSuccessMessage(
+        `Account ${isSuspending ? 'suspended' : 'activated'} successfully.`
+      );
+      setTimeout(() => setActionSuccessMessage(null), 4000);
+      setManagingUser(null);
+    } catch (err) {
+      console.error('Failed to update account status:', err);
+      setError(err.message || 'Failed to update account status.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleExportCSV = () => {
@@ -274,7 +177,8 @@ export default function UserManagement() {
       `"${u.status}"`,
       `"${u.joined}"`,
     ]);
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const csvContent =
+      'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
@@ -288,34 +192,32 @@ export default function UserManagement() {
     e.preventDefault();
     if (!newUserName.trim() || !newUserEmail.trim()) return;
 
-    const initials = newUserName
-      .split(' ')
-      .map((n) => n[0])
-      .slice(0, 2)
-      .join('')
-      .toUpperCase();
-
+    // For manual local demo insertion
     const newUser = {
       id: `u-${Date.now()}`,
+      uid: `u-${Date.now()}`,
       name: newUserName.trim(),
       email: newUserEmail.trim(),
-      avatarBg: 'bg-[#2563eb]',
       role: newUserRole,
+      rawRole: newUserRole.toLowerCase(),
       program: newUserProgram.trim() || 'General Enrollment',
       section: newUserSection.trim() || 'Section 1A',
       status: 'Active',
       joined: 'Today',
     };
 
-    setAllUsers([newUser, ...allUsers]);
+    setUsersList((prev) => [newUser, ...prev]);
     setIsAddUserModalOpen(false);
     setNewUserName('');
     setNewUserEmail('');
     setNewUserProgram('');
     setNewUserSection('');
+    setActionSuccessMessage('Account recorded.');
+    setTimeout(() => setActionSuccessMessage(null), 3000);
   };
 
   const getInitials = (name) => {
+    if (!name) return 'U';
     const parts = name.replace(/Dr\.|Prof\.|Engr\./g, '').trim().split(' ');
     if (parts.length >= 2) {
       return (parts[0][0] + parts[1][0]).toUpperCase();
@@ -325,6 +227,20 @@ export default function UserManagement() {
 
   return (
     <div className="max-w-[1340px] mx-auto flex flex-col gap-6 w-full">
+      {/* Toast Success Message */}
+      {actionSuccessMessage && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-[#0f172a] text-white px-5 py-3 rounded-xl shadow-xl text-sm font-medium flex items-center gap-2 border border-white/10 transition-all">
+          <svg className="w-4 h-4 text-emerald-400 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+            <path
+              fillRule="evenodd"
+              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+              clipRule="evenodd"
+            />
+          </svg>
+          <span>{actionSuccessMessage}</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex flex-col gap-1">
@@ -347,220 +263,225 @@ export default function UserManagement() {
         </div>
       </div>
 
-      {/* Subtabs Bar: Styled EXACTLY like ManageLists for full cohesiveness */}
-      <div className="flex items-center justify-between border-b border-[#E8E4D8] pb-1">
-        <div className="flex items-center gap-2 overflow-x-auto">
-          {subtabs.map((tab) => {
-            const isActive = activeSubtab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => {
-                  setActiveSubtab(tab.id);
-                  setCurrentPage(1);
-                  setSearchQuery('');
-                }}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg font-medium text-sm transition-colors cursor-pointer whitespace-nowrap ${
+      {/* Error Feedback */}
+      {error && (
+        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <svg className="w-5 h-5 shrink-0 text-rose-500" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            <span>{error}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            className="text-rose-500 hover:text-rose-700 text-xs font-bold cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Subtabs Bar */}
+      <div className="flex items-center gap-1 border-b border-[#E8E4D8] overflow-x-auto">
+        {subtabs.map((tab) => {
+          const isActive = activeSubtab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => {
+                setActiveSubtab(tab.id);
+                setCurrentPage(1);
+              }}
+              type="button"
+              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap cursor-pointer ${
+                isActive
+                  ? 'border-[#5170ff] text-[#5170ff] font-semibold'
+                  : 'border-transparent text-[#6E6858] hover:text-[#23261F] hover:border-[#CBD5E1]'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[18px]">{tab.icon}</span>
+              <span>{tab.label}</span>
+              <span
+                className={`ml-1.5 px-2 py-0.5 rounded-full text-xs font-semibold ${
                   isActive
-                    ? 'font-semibold border-b-2 border-[#5170ff] text-[#5170ff] bg-white shadow-[0_-2px_6px_rgba(0,0,0,0.02)]'
-                    : 'text-[#6E6858] hover:text-[#23261F] hover:bg-[#eff4ff]'
+                    ? 'bg-[#5170ff]/10 text-[#5170ff]'
+                    : 'bg-slate-100 text-[#6E6858]'
                 }`}
               >
-                <span className="material-symbols-outlined text-[18px]">
-                  {tab.icon}
-                </span>
-                <span>{tab.label}</span>
-                <span
-                  className={`px-2 py-0.5 rounded-full text-xs ${
-                    isActive
-                      ? 'font-bold bg-[#5170ff] text-white'
-                      : 'font-medium bg-[#E8E4D8]/60 text-[#444655]'
-                  }`}
-                >
-                  {tab.count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+                {tab.count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
-      {/* Search and Filters Toolbar */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-        <div className="relative flex items-center flex-1 max-w-xl">
-          <span className="material-symbols-outlined absolute left-3 text-[18px] text-[#6E6858] pointer-events-none">
-            search
-          </span>
-          <input
-            type="text"
-            className="w-full pl-9 pr-3.5 py-2 text-sm bg-white border border-[#CBD5E1] rounded-lg text-[#23261F] placeholder-[#6E6858]/60 focus:outline-none focus:border-[#5170ff] focus:ring-1 focus:ring-[#5170ff] shadow-[0_1px_2px_rgba(0,0,0,0.02)]"
-            placeholder="Search by name, email or username"
-            value={searchQuery}
+      {/* Toolbar & Filters */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Search Box */}
+          <div className="relative w-full sm:w-72">
+            <span className="material-symbols-outlined absolute left-3 top-2.5 text-[18px] text-[#6E6858] pointer-events-none">
+              search
+            </span>
+            <input
+              type="text"
+              placeholder="Search user by name, email..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full pl-9 pr-3.5 py-2 text-sm bg-white border border-[#CBD5E1] rounded-lg text-[#23261F] placeholder-[#6E6858]/60 focus:outline-none focus:border-[#5170ff] focus:ring-1 focus:ring-[#5170ff]"
+            />
+          </div>
+
+          {/* Role Filter */}
+          <select
+            value={roleFilter}
             onChange={(e) => {
-              setSearchQuery(e.target.value);
+              setRoleFilter(e.target.value);
               setCurrentPage(1);
             }}
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 text-[#6E6858] hover:text-[#23261F] text-xs font-semibold cursor-pointer"
-            >
-              ✕
-            </button>
-          )}
+            className="px-3 py-2 text-sm bg-white border border-[#CBD5E1] rounded-lg text-[#444655] focus:outline-none focus:border-[#5170ff] cursor-pointer"
+          >
+            <option value="All Roles">All Roles</option>
+            <option value="Student">Students</option>
+            <option value="Faculty">Faculty</option>
+            <option value="Admin">Admins</option>
+          </select>
+
+          {/* Status Filter */}
+          <select
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="px-3 py-2 text-sm bg-white border border-[#CBD5E1] rounded-lg text-[#444655] focus:outline-none focus:border-[#5170ff] cursor-pointer"
+          >
+            <option value="All Statuses">All Statuses</option>
+            <option value="Active">Active</option>
+            <option value="Suspended">Suspended</option>
+            {activeSubtab === 'pending' && <option value="Pending approval">Pending</option>}
+          </select>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
-          {/* Roles Filter Dropdown */}
-          <div className="relative">
-            <select
-              value={roleFilter}
-              onChange={(e) => {
-                setRoleFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="appearance-none pl-3.5 pr-8 py-2 text-sm bg-white border border-[#CBD5E1] rounded-lg text-[#444655] font-medium focus:outline-none focus:border-[#5170ff] focus:ring-1 focus:ring-[#5170ff] shadow-[0_1px_2px_rgba(0,0,0,0.02)] cursor-pointer"
-            >
-              <option value="All Roles">All Roles</option>
-              <option value="Student">Student</option>
-              <option value="Faculty">Faculty</option>
-              <option value="Staff">Staff</option>
-            </select>
-            <span className="material-symbols-outlined absolute right-2.5 top-2.5 text-[18px] text-[#6E6858] pointer-events-none">
-              expand_more
-            </span>
-          </div>
-
-          {/* Status Filter Dropdown */}
-          <div className="relative">
-            <select
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="appearance-none pl-3.5 pr-8 py-2 text-sm bg-white border border-[#CBD5E1] rounded-lg text-[#444655] font-medium focus:outline-none focus:border-[#5170ff] focus:ring-1 focus:ring-[#5170ff] shadow-[0_1px_2px_rgba(0,0,0,0.02)] cursor-pointer"
-            >
-              <option value="All Statuses">All Statuses</option>
-              <option value="Active">Active</option>
-              <option value="Suspended">Suspended</option>
-              <option value="Pending approval">Pending approval</option>
-            </select>
-            <span className="material-symbols-outlined absolute right-2.5 top-2.5 text-[18px] text-[#6E6858] pointer-events-none">
-              expand_more
-            </span>
-          </div>
+        {/* Export CSV Button */}
+        <div>
+          <button
+            onClick={handleExportCSV}
+            type="button"
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-[#444655] bg-white border border-[#CBD5E1] rounded-lg hover:bg-slate-50 transition-colors shadow-xs cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[18px]">download</span>
+            <span>Export CSV</span>
+          </button>
         </div>
       </div>
 
-      {/* Metadata strip: Account Count and Export CSV */}
-      <div className="flex items-center justify-between text-xs text-[#6E6858] font-bold tracking-wider pt-1">
-        <span>{filteredUsers.length} ACCOUNTS</span>
-        <button
-          onClick={handleExportCSV}
-          type="button"
-          className="flex items-center gap-1.5 text-xs font-semibold text-[#5170ff] hover:underline cursor-pointer"
-        >
-          <span className="material-symbols-outlined text-[16px]">download</span>
-          <span>Export CSV</span>
-        </button>
-      </div>
-
-      {/* Table: Unified Table Format for both All Users and Pending Approvals */}
+      {/* Users Table */}
       <div className="bg-white rounded-xl border border-[#E8E4D8] shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
-            <thead className="bg-white text-[#6E6858] text-xs uppercase font-semibold border-b border-[#E8E4D8]">
+            <thead className="bg-[#f8f9ff] text-[#6E6858] text-xs uppercase font-semibold border-b border-[#E8E4D8]">
               <tr>
-                <th className="py-3.5 px-6 whitespace-nowrap">Account</th>
+                <th className="py-3.5 px-6 whitespace-nowrap">User</th>
                 <th className="py-3.5 px-6 whitespace-nowrap">Role</th>
-                <th className="py-3.5 px-6">Details</th>
-                <th className="py-3.5 px-6">Status</th>
+                <th className="py-3.5 px-6 whitespace-nowrap">Program / Department</th>
+                <th className="py-3.5 px-6 whitespace-nowrap">Status</th>
                 <th className="py-3.5 px-6 whitespace-nowrap">Joined</th>
-                <th className="py-3.5 px-6 text-right whitespace-nowrap">Action</th>
+                <th className="py-3.5 px-6 text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E8E4D8] text-sm text-[#23261F]">
-              {paginatedUsers.length === 0 ? (
+              {isLoading ? (
                 <tr>
                   <td colSpan={6} className="py-12 text-center text-[#6E6858]">
-                    No accounts found matching your search or filters.
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <div className="w-6 h-6 border-2 border-[#5170ff] border-t-transparent rounded-full animate-spin" />
+                      <span className="text-xs font-medium">Loading real accounts from database...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : paginatedUsers.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-10 text-center text-[#6E6858]">
+                    {searchQuery || roleFilter !== 'All Roles' || statusFilter !== 'All Statuses'
+                      ? 'No users match the search and filter criteria.'
+                      : activeSubtab === 'pending'
+                      ? 'No faculty registration requests awaiting approval.'
+                      : 'No users registered yet.'}
                   </td>
                 </tr>
               ) : (
                 paginatedUsers.map((user) => (
-                  <tr
-                    key={user.id}
-                    className="hover:bg-[#eff4ff]/40 transition-colors"
-                  >
-                    {/* Account: Avatar + Name + Email */}
+                  <tr key={user.id} className="hover:bg-[#f8f9ff]/70 transition-colors">
+                    {/* User Profile Cell */}
                     <td className="py-3.5 px-6 whitespace-nowrap">
                       <div className="flex items-center gap-3">
-                        <div
-                          className={`w-9 h-9 rounded-full ${user.avatarBg || 'bg-[#2563eb]'} text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs`}
-                        >
-                          {getInitials(user.name)}
+                        <div className="w-9 h-9 rounded-full bg-[#5170ff] text-white font-bold text-xs flex items-center justify-center shrink-0 overflow-hidden shadow-xs">
+                          {user.avatarUrl ? (
+                            <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
+                          ) : (
+                            getInitials(user.name)
+                          )}
                         </div>
                         <div className="flex flex-col">
-                          <span className="font-bold text-sm text-[#23261F]">
-                            {user.name}
-                          </span>
-                          <span className="text-xs text-[#6E6858]">{user.email}</span>
+                          <span className="font-semibold text-[#0f172a]">{user.name}</span>
+                          <span className="text-xs text-[#64748b]">{user.email}</span>
                         </div>
                       </div>
                     </td>
 
-                    {/* Role: Pill badge */}
+                    {/* Role */}
                     <td className="py-3.5 px-6 whitespace-nowrap">
-                      <span className="px-3 py-1 rounded-full text-xs font-medium bg-[#eff4ff] text-[#5170ff] border border-[#d3e4fe]">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
                         {user.role}
                       </span>
                     </td>
 
-                    {/* Details: Program & Section / Position */}
-                    <td className="py-3.5 px-6">
-                      <div className="flex flex-col">
-                        <span className="font-semibold text-xs text-[#23261F]">
-                          {user.program}
-                        </span>
-                        <span className="text-[11px] text-[#6E6858]">{user.section}</span>
-                      </div>
+                    {/* Program / Department */}
+                    <td className="py-3.5 px-6 whitespace-nowrap text-xs text-[#444655]">
+                      <div>{user.program}</div>
+                      {user.section && <div className="text-[11px] text-[#6E6858]">{user.section}</div>}
                     </td>
 
-                    {/* Status: Dot badge */}
+                    {/* Status */}
                     <td className="py-3.5 px-6 whitespace-nowrap">
-                      {user.status === 'Active' ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                          Active
-                        </span>
-                      ) : user.status === 'Suspended' ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-200">
-                          <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-                          Suspended
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                          Pending approval
-                        </span>
-                      )}
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                          user.status === 'Active'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : user.status === 'Pending approval'
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                            : 'bg-rose-50 text-rose-700 border border-rose-200'
+                        }`}
+                      >
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            user.status === 'Active'
+                              ? 'bg-emerald-500'
+                              : user.status === 'Pending approval'
+                              ? 'bg-amber-500'
+                              : 'bg-rose-500'
+                          }`}
+                        />
+                        {user.status}
+                      </span>
                     </td>
 
-                    {/* Joined Date */}
+                    {/* Joined */}
                     <td className="py-3.5 px-6 whitespace-nowrap text-xs text-[#6E6858]">
                       {user.joined}
                     </td>
 
-                    {/* Action: Manage button */}
+                    {/* Actions */}
                     <td className="py-3.5 px-6 text-right whitespace-nowrap">
                       <button
-                        type="button"
                         onClick={() => setManagingUser(user)}
-                        className="px-3.5 py-1.5 rounded-lg border border-[#CBD5E1] bg-white hover:bg-[#eff4ff] text-xs font-medium text-[#23261F] transition-colors shadow-xs cursor-pointer"
+                        type="button"
+                        className="px-3 py-1.5 text-xs font-semibold text-[#5170ff] hover:bg-[#eff4ff] rounded-lg transition-colors cursor-pointer"
                       >
                         Manage
                       </button>
@@ -573,79 +494,48 @@ export default function UserManagement() {
         </div>
 
         {/* Pagination Footer */}
-        <div className="p-3.5 px-6 bg-[#eff4ff]/50 border-t border-[#E8E4D8] flex items-center justify-between text-xs text-[#6E6858]">
+        <div className="p-3.5 px-6 bg-[#f8f9ff] border-t border-[#E8E4D8] flex items-center justify-between text-xs text-[#6E6858]">
           <div className="font-medium">
-            Showing{' '}
-            <span className="font-semibold text-[#23261F]">
-              {filteredUsers.length === 0
-                ? '0'
-                : `${(currentPage - 1) * itemsPerPage + 1}–${Math.min(
-                    currentPage * itemsPerPage,
-                    filteredUsers.length
-                  )}`}
-            </span>{' '}
-            of <span className="font-semibold text-[#23261F]">{filteredUsers.length}</span>{' '}
-            accounts
+            Showing {paginatedUsers.length} of {filteredUsers.length} accounts
           </div>
-
           <div className="flex items-center gap-1.5">
             <button
-              type="button"
-              disabled={currentPage === 1}
+              className="px-2.5 py-1 rounded border border-[#CBD5E1] bg-white text-[#444655] hover:bg-slate-50 transition-colors disabled:opacity-50 font-medium cursor-pointer disabled:cursor-not-allowed"
+              disabled={currentPage === 1 || isLoading}
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              className="px-2.5 py-1 rounded border border-[#CBD5E1] bg-white text-[#444655] hover:bg-[#eff4ff] transition-colors disabled:opacity-40 font-medium cursor-pointer disabled:cursor-not-allowed"
-            >
-              &lt; Previous
-            </button>
-
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-              <button
-                key={page}
-                type="button"
-                onClick={() => setCurrentPage(page)}
-                className={`px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
-                  currentPage === page
-                    ? 'bg-[#5170ff] text-white font-bold shadow-xs'
-                    : 'border border-[#CBD5E1] bg-white text-[#23261F] hover:bg-[#eff4ff]'
-                }`}
-              >
-                {page}
-              </button>
-            ))}
-
-            <button
               type="button"
-              disabled={currentPage >= totalPages}
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              className="px-2.5 py-1 rounded border border-[#CBD5E1] bg-white text-[#444655] hover:bg-[#eff4ff] transition-colors disabled:opacity-40 font-medium cursor-pointer disabled:cursor-not-allowed"
             >
-              Next &gt;
+              Previous
+            </button>
+            <span className="px-2 font-semibold text-[#23261F]">{currentPage}</span>
+            <button
+              className="px-2.5 py-1 rounded border border-[#CBD5E1] bg-white text-[#444655] hover:bg-slate-50 transition-colors font-medium cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={currentPage >= totalPages || isLoading}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              type="button"
+            >
+              Next
             </button>
           </div>
         </div>
       </div>
 
-      {/* Manage User Modal Dialog */}
+      {/* Manage User Modal */}
       {managingUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-150">
           <div
-            className="w-full max-w-[460px] bg-white rounded-2xl shadow-2xl border border-[#CBD5E1]/60 overflow-hidden"
+            className="w-full max-w-[480px] bg-white rounded-2xl shadow-2xl border border-[#CBD5E1]/60 overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
+            {/* Modal Header */}
             <div className="px-6 pt-6 pb-4 border-b border-[#E2E8F0]/80 flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div
-                  className={`w-11 h-11 rounded-full ${managingUser.avatarBg} text-white font-bold text-sm flex items-center justify-center shrink-0`}
-                >
-                  {getInitials(managingUser.name)}
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-[#0f172a] leading-tight">
-                    {managingUser.name}
-                  </h3>
-                  <p className="text-xs text-[#64748b]">{managingUser.email}</p>
-                </div>
+              <div>
+                <h2 className="text-xl font-bold text-[#0f172a] font-headline tracking-tight">
+                  Manage Account
+                </h2>
+                <p className="text-xs text-[#64748b] mt-1">
+                  Inspect and modify permissions or account status.
+                </p>
               </div>
               <button
                 type="button"
@@ -656,47 +546,59 @@ export default function UserManagement() {
               </button>
             </div>
 
-            {/* Account Details Body */}
-            <div className="px-6 py-5 space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-3 bg-[#f8f9ff] p-3 rounded-xl border border-[#CBD5E1]/60">
-                <div>
-                  <span className="text-[#64748b] block font-medium">Role</span>
-                  <span className="font-semibold text-[#0f172a] text-sm mt-0.5 inline-block">
-                    {managingUser.role}
-                  </span>
+            {/* Modal Body */}
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-3.5 p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                <div className="w-12 h-12 rounded-full bg-[#5170ff] text-white font-bold text-sm flex items-center justify-center shrink-0 overflow-hidden shadow-xs">
+                  {managingUser.avatarUrl ? (
+                    <img src={managingUser.avatarUrl} alt={managingUser.name} className="w-full h-full object-cover" />
+                  ) : (
+                    getInitials(managingUser.name)
+                  )}
                 </div>
-                <div>
-                  <span className="text-[#64748b] block font-medium">Status</span>
-                  <span className="font-semibold text-[#0f172a] text-sm mt-0.5 inline-block">
-                    {managingUser.status}
-                  </span>
-                </div>
-                <div className="col-span-2 pt-2 border-t border-[#CBD5E1]/50">
-                  <span className="text-[#64748b] block font-medium">Department / Program</span>
-                  <span className="font-semibold text-[#0f172a]">
-                    {managingUser.program} ({managingUser.section})
-                  </span>
+                <div className="flex flex-col">
+                  <span className="text-base font-bold text-[#0f172a]">{managingUser.name}</span>
+                  <span className="text-xs text-[#64748b]">{managingUser.email}</span>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-200 text-slate-800">
+                      {managingUser.role}
+                    </span>
+                    <span
+                      className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
+                        managingUser.status === 'Active'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : managingUser.status === 'Pending approval'
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-rose-100 text-rose-800'
+                      }`}
+                    >
+                      {managingUser.status}
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              {managingUser.status === 'Pending approval' ? (
-                <div className="p-3 bg-[#eff4ff] border border-[#d3e4fe] rounded-xl flex items-start gap-2.5">
-                  <span className="material-symbols-outlined text-[18px] text-[#5170ff] shrink-0 mt-0.5">
-                    info
-                  </span>
-                  <p className="text-[11px] text-[#444655] leading-relaxed">
-                    Approving grants permissions to verify, log, and return items campus-wide.
-                  </p>
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="p-3 rounded-lg border border-slate-200">
+                  <span className="text-[#64748b] block font-medium">Program / Dept:</span>
+                  <span className="text-[#0f172a] font-semibold mt-0.5 block">{managingUser.program}</span>
                 </div>
-              ) : null}
+                <div className="p-3 rounded-lg border border-slate-200">
+                  <span className="text-[#64748b] block font-medium">Section / Position:</span>
+                  <span className="text-[#0f172a] font-semibold mt-0.5 block">
+                    {managingUser.section || 'N/A'}
+                  </span>
+                </div>
+              </div>
             </div>
 
-            {/* Actions Footer */}
-            <div className="px-6 py-4 border-t border-[#E2E8F0]/80 flex items-center justify-end gap-2.5 bg-white">
+            {/* Modal Footer Actions */}
+            <div className="px-6 py-4 border-t border-[#E2E8F0]/80 flex items-center justify-end gap-2.5 bg-slate-50">
               <button
                 type="button"
+                disabled={isProcessing}
                 onClick={() => setManagingUser(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-[#0f172a] bg-[#eff4ff] hover:bg-[#e2e8f0] transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-[#0f172a] bg-white border border-[#CBD5E1] hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50"
               >
                 Close
               </button>
@@ -705,31 +607,38 @@ export default function UserManagement() {
                 <>
                   <button
                     type="button"
+                    disabled={isProcessing}
                     onClick={() => handleDeclinePending(managingUser.id)}
-                    className="px-4 py-2 rounded-xl text-xs font-semibold text-[#ba1a1a] bg-red-50 hover:bg-red-100 border border-red-200 transition-colors cursor-pointer"
+                    className="px-4 py-2 rounded-xl text-xs font-semibold text-[#ba1a1a] bg-red-50 hover:bg-red-100 border border-red-200 transition-colors cursor-pointer disabled:opacity-50"
                   >
-                    Decline
+                    {isProcessing ? 'Processing...' : 'Decline'}
                   </button>
                   <button
                     type="button"
+                    disabled={isProcessing}
                     onClick={() => handleApprovePending(managingUser.id)}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-[#5170ff] hover:bg-[#4767f6] transition-colors shadow-xs cursor-pointer"
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-[#5170ff] hover:bg-[#4767f6] transition-colors shadow-xs cursor-pointer disabled:opacity-50"
                   >
                     <span className="material-symbols-outlined text-[16px]">check</span>
-                    <span>Approve account</span>
+                    <span>{isProcessing ? 'Approving...' : 'Approve account'}</span>
                   </button>
                 </>
               ) : (
                 <button
                   type="button"
+                  disabled={isProcessing}
                   onClick={() => handleToggleUserStatus(managingUser.id)}
-                  className={`px-4 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                  className={`px-4 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50 ${
                     managingUser.status === 'Active'
                       ? 'bg-red-50 text-[#b91c1c] hover:bg-red-100 border border-red-200'
                       : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
                   }`}
                 >
-                  {managingUser.status === 'Active' ? 'Suspend Account' : 'Activate Account'}
+                  {isProcessing
+                    ? 'Updating...'
+                    : managingUser.status === 'Active'
+                    ? 'Suspend Account'
+                    : 'Activate Account'}
                 </button>
               )}
             </div>

@@ -11,6 +11,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import ConversationMessage from './ConversationMessage.jsx';
+import { subscribeClaimMessages, sendClaimMessage } from '../firebase/messaging.js';
 
 /**
  * ClaimMatchVerificationModal Component
@@ -18,29 +19,6 @@ import ConversationMessage from './ConversationMessage.jsx';
  * Reusable modal for verifying item claims and matches.
  * Uses lucide-react vector icons so icons never render as raw text.
  * Matches Stitch AI ClaimIt design system with cohesive color scheme (#E8E4D8, #284bdc, #23261F).
- *
- * @param {Object} props
- * @param {boolean} [props.isOpen=true] - Controls visibility of the modal
- * @param {Function} [props.onClose] - Callback when modal is closed
- * @param {Function} [props.onBack] - Callback when "< Back" button is clicked
- * @param {Object} props.verification - Dynamic claim or match verification data
- * @param {string} props.verification.id - Reference ID (e.g. "C-495", "C-512")
- * @param {'match'|'claim'} [props.verification.type='claim'] - Type of verification
- * @param {string} props.verification.itemTitle - Title of the item (e.g. "Blue Stainless Water Bottle")
- * @param {string} props.verification.reportTicket - Related report ticket (e.g. "R-1073")
- * @param {string} props.verification.submitterName - Name of the person who claimed/matched
- * @param {string} props.verification.submittedDate - Date submitted (e.g. "Aug 22, 5:02 PM")
- * @param {'Approved'|'Pending'|'Declined'|string} [props.verification.status='Pending'] - Current status
- * @param {string} [props.verification.imageUrl] - Image evidence URL
- * @param {string} [props.verification.messagePreview] - Message quote
- * @param {Array<Object>} [props.verification.messages] - Conversation messages thread
- * @param {boolean} [props.verification.isClosed] - Explicit closed/readonly flag
- * @param {Function} [props.onApprove] - Callback when "Approve Claim/Match" is clicked
- * @param {Function} [props.onDecline] - Callback when "Decline" is clicked
- * @param {Function} [props.onSendMessage] - Callback when a new reply message is sent: `(text) => void`
- * @param {Function} [props.onInspectDetails] - Callback when "Inspect details" is clicked
- * @param {Object} [props.currentUser={ name: 'You' }] - Viewer details for outgoing replies
- * @param {string} [props.className] - Additional styling classes
  */
 export default function ClaimMatchVerificationModal({
   isOpen = true,
@@ -58,14 +36,39 @@ export default function ClaimMatchVerificationModal({
   const [localMessages, setLocalMessages] = useState([]);
   const messagesEndRef = useRef(null);
 
-  // Sync incoming verification messages with local state
+  const reportId = verification?.reportId || verification?.reportTicket;
+  const claimId = verification?.claimId || verification?.id;
+
+  // Real-time Firestore subscription to conversation thread
   useEffect(() => {
-    if (verification?.messages) {
-      setLocalMessages(verification.messages);
-    } else {
-      setLocalMessages([]);
+    if (!isOpen || !verification) return;
+    if (!reportId || !claimId) return;
+
+    const unsubscribe = subscribeClaimMessages(
+      reportId,
+      claimId,
+      (msgs) => {
+        if (msgs && msgs.length > 0) {
+          setLocalMessages(msgs);
+        }
+      },
+      (err) => {
+        console.warn('ClaimMatchVerificationModal subscription warning:', err);
+      }
+    );
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [isOpen, verification, reportId, claimId]);
+
+  // Sync incoming verification messages with local state if no live messages yet
+  useEffect(() => {
+    if (verification?.messages && verification.messages.length > 0) {
+      setLocalMessages((prev) => (prev.length > 0 ? prev : verification.messages));
     }
   }, [verification?.messages]);
+
 
   // Scroll to bottom of conversation on message update
   useEffect(() => {
@@ -145,10 +148,27 @@ export default function ClaimMatchVerificationModal({
     }
   };
 
-  const handleSendReply = (e) => {
+  const handleSendReply = async (e) => {
     if (e) e.preventDefault();
     const trimmed = replyText.trim();
     if (!trimmed) return;
+
+    setReplyText('');
+
+    if (reportId && claimId) {
+      try {
+        await sendClaimMessage({
+          reportId,
+          claimId,
+          text: trimmed,
+          senderUid: currentUser?.uid,
+          senderName: currentUser?.name || 'You',
+          senderRole: currentUser?.role || 'Reporter',
+        });
+      } catch (err) {
+        console.warn('Failed to send persistent message:', err);
+      }
+    }
 
     const newMsg = {
       id: `msg-${Date.now()}`,
@@ -159,7 +179,6 @@ export default function ClaimMatchVerificationModal({
     };
 
     setLocalMessages((prev) => [...prev, newMsg]);
-    setReplyText('');
 
     if (onSendMessage) {
       onSendMessage(trimmed);

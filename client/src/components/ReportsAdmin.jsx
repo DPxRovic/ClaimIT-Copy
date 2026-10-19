@@ -327,6 +327,8 @@ const MagnifierDotIcon = ({ className = 'w-4 h-4' }) => (
   </svg>
 );
 
+import { subscribeReports, deleteReportService, closeReportService } from '../firebase/reports.js';
+
 export default function ReportsAdmin({
   initialUser,
   onSaveProfile,
@@ -335,6 +337,9 @@ export default function ReportsAdmin({
   onNavigate = () => {},
 }) {
   const [selectedRow, setSelectedRow] = useState(null);
+  const [reportsList, setReportsList] = useState(TABLE_DATA);
+  const [isLoading, setIsLoading] = useState(true);
+  const [toastMessage, setToastMessage] = useState(null);
 
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -349,15 +354,79 @@ export default function ReportsAdmin({
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
 
+  // Real-time Firestore subscription to reports
+  useEffect(() => {
+    setIsLoading(true);
+    const unsubscribe = subscribeReports(
+      { type: 'ALL', status: 'ALL' },
+      (liveReports) => {
+        if (liveReports && liveReports.length > 0) {
+          const formatted = liveReports.map((r) => {
+            const isFound = (r.type || '').toUpperCase() === 'FOUND';
+            const submittedStr = r.date || 'Recent';
+
+            return {
+              id: r.id,
+              reportId: r.id,
+              ticketId: r.ticketNumber || `#CLM-${r.id.slice(0, 4)}`,
+              itemTitle: r.title || 'Untitled Report',
+              category: r.category || 'Others',
+              type: isFound ? 'Found' : 'Lost',
+              status: r.status || 'Active',
+              reportedBy: r.reporterName || 'Campus Member',
+              role: r.reporterRole || 'Student',
+              submitted: submittedStr,
+              claims: r.claimsCount > 0 ? `${r.claimsCount} pending` : 'None',
+              location: r.location || 'Campus',
+              locationFound: r.location || 'Campus',
+              locationSub: r.location || '',
+              date: r.date || '',
+              reportedDateSubtitle: submittedStr,
+              dateReportedFull: submittedStr,
+              dateReportedSub: submittedStr,
+              description: r.description || '',
+              imageUrl: r.imageUrl || null,
+            };
+          });
+          setReportsList(formatted);
+        }
+        setIsLoading(false);
+      },
+      (err) => {
+        console.warn('ReportsAdmin subscription warning:', err);
+        setIsLoading(false);
+      }
+    );
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, []);
+
+  const handleDeleteListing = async (itemToDelete) => {
+    if (!itemToDelete) return;
+    const targetId = itemToDelete.id || itemToDelete.reportId;
+    try {
+      await deleteReportService(targetId);
+      setReportsList((prev) => prev.filter((r) => r.id !== targetId && r.ticketId !== itemToDelete.ticketId));
+      setSelectedRow(null);
+      setToastMessage(`Report listing ${itemToDelete.ticketId} permanently deleted.`);
+      setTimeout(() => setToastMessage(null), 4000);
+    } catch (err) {
+      console.error('Failed to delete report:', err);
+      alert('Failed to delete report: ' + (err.message || 'Permission denied'));
+    }
+  };
+
   // Available categories
   const categoriesList = useMemo(() => {
-    const set = new Set(TABLE_DATA.map((d) => d.category));
+    const set = new Set(reportsList.map((d) => d.category));
     return ['All', ...Array.from(set)];
-  }, []);
+  }, [reportsList]);
 
   // Filtered and sorted data
   const filteredData = useMemo(() => {
-    let result = TABLE_DATA.filter((item) => {
+    let result = reportsList.filter((item) => {
       // Search by item, location, ticket ID or reporter
       const q = searchQuery.trim().toLowerCase();
       const matchesSearch =
@@ -389,10 +458,10 @@ export default function ReportsAdmin({
     // Sorting
     result = [...result].sort((a, b) => {
       if (sortOrder === 'Newest') {
-        return TABLE_DATA.indexOf(a) - TABLE_DATA.indexOf(b);
+        return reportsList.indexOf(a) - reportsList.indexOf(b);
       }
       if (sortOrder === 'Oldest') {
-        return TABLE_DATA.indexOf(b) - TABLE_DATA.indexOf(a);
+        return reportsList.indexOf(b) - reportsList.indexOf(a);
       }
       if (sortOrder === 'A-Z') {
         return a.itemTitle.localeCompare(b.itemTitle);
@@ -401,7 +470,7 @@ export default function ReportsAdmin({
     });
 
     return result;
-  }, [searchQuery, typeFilter, statusFilter, categoryFilter, sortOrder]);
+  }, [reportsList, searchQuery, typeFilter, statusFilter, categoryFilter, sortOrder]);
 
   // Export CSV handler
   const handleExportCSV = () => {
@@ -956,11 +1025,20 @@ export default function ReportsAdmin({
       {/* Trailing space for below-the-fold feel */}
       <div className="h-12" />
 
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-[#0F172A] text-white px-5 py-3 rounded-xl shadow-xl text-sm font-medium flex items-center gap-2 border border-white/10 transition-all">
+          <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
       {/* Item Details Modal */}
       {selectedRow && (
         <ItemDetailsModal
           item={selectedRow}
           onClose={() => setSelectedRow(null)}
+          onDeleteListing={handleDeleteListing}
         />
       )}
     </div>

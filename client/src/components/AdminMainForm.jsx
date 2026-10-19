@@ -1,5 +1,12 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import UserProfileModal from './UserProfileModal.jsx';
+import { Notifications } from './Notifications.jsx';
+import {
+  subscribeUserNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  DEFAULT_NOTIFICATIONS,
+} from '../firebase/notifications.js';
 
 // Automatically discover JSX files in the same components folder.
 const pageModules = import.meta.glob('./*.jsx');
@@ -63,10 +70,33 @@ export default function AdminMainForm({
 }) {
   const [activePath, setActivePath] = useState(currentPath);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [notificationsList, setNotificationsList] = useState(DEFAULT_NOTIFICATIONS);
   const [user, setUser] = useState(initialUser);
 
   const profileButtonRef = useRef(null);
   const modalContainerRef = useRef(null);
+  const notificationButtonRef = useRef(null);
+  const notificationContainerRef = useRef(null);
+
+  // Subscribe to real-time notifications
+  useEffect(() => {
+    const unsubscribe = subscribeUserNotifications(
+      user?.uid || 'admin',
+      (notifs) => {
+        if (notifs) {
+          setNotificationsList(notifs);
+        }
+      },
+      (err) => {
+        console.warn('Admin notifications subscription warning:', err);
+      }
+    );
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [user?.uid]);
 
   // Load Material Symbols for the sidebar and header icons.
   useEffect(() => {
@@ -89,7 +119,7 @@ export default function AdminMainForm({
     setActivePath(currentPath);
   }, [currentPath]);
 
-  // Close profile modal on click outside
+  // Close profile modal and notifications on click outside
   useEffect(() => {
     function handleClickOutside(event) {
       if (
@@ -101,10 +131,19 @@ export default function AdminMainForm({
       ) {
         setIsProfileModalOpen(false);
       }
+      if (
+        isNotificationsOpen &&
+        notificationContainerRef.current &&
+        !notificationContainerRef.current.contains(event.target) &&
+        notificationButtonRef.current &&
+        !notificationButtonRef.current.contains(event.target)
+      ) {
+        setIsNotificationsOpen(false);
+      }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isProfileModalOpen]);
+  }, [isProfileModalOpen, isNotificationsOpen]);
 
   const handleNavClick = (path, e) => {
     if (e) e.preventDefault();
@@ -250,17 +289,49 @@ export default function AdminMainForm({
 
           {/* Notifications and User Profile */}
           <div className="flex items-center gap-3 relative">
-            <button
-              aria-label="Notifications"
-              className="relative flex items-center justify-center p-2 rounded-lg text-[#444655] hover:bg-[#e5eeff] hover:text-[#0b1c30] transition-colors cursor-pointer"
-              type="button"
-            >
-              <span className="material-symbols-outlined text-[22px]">
-                notifications
-              </span>
+            <div className="relative">
+              <button
+                ref={notificationButtonRef}
+                aria-label="Notifications"
+                onClick={() => setIsNotificationsOpen((prev) => !prev)}
+                className="relative flex items-center justify-center p-2 rounded-lg text-[#444655] hover:bg-[#e5eeff] hover:text-[#0b1c30] transition-colors cursor-pointer"
+                type="button"
+              >
+                <span className="material-symbols-outlined text-[22px]">
+                  notifications
+                </span>
 
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#ba1a1a] ring-2 ring-white" />
-            </button>
+                {notificationsList.filter((n) => n.unread).length > 0 && (
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#ba1a1a] ring-2 ring-white" />
+                )}
+              </button>
+
+              {isNotificationsOpen && (
+                <div
+                  ref={notificationContainerRef}
+                  className="absolute right-0 top-11 z-50 animate-in fade-in zoom-in-95 duration-150"
+                >
+                  <Notifications
+                    notifications={notificationsList}
+                    onClose={() => setIsNotificationsOpen(false)}
+                    onMarkAllAsRead={async () => {
+                      await markAllNotificationsAsRead(notificationsList);
+                      setNotificationsList((prev) => prev.map((n) => ({ ...n, unread: false })));
+                    }}
+                    onMarkAsRead={async (id) => {
+                      await markNotificationAsRead(id);
+                      setNotificationsList((prev) =>
+                        prev.map((n) => (n.id === id ? { ...n, unread: false } : n))
+                      );
+                    }}
+                    onSelectClaim={(claimId) => {
+                      setIsNotificationsOpen(false);
+                      setActivePath('reports');
+                    }}
+                  />
+                </div>
+              )}
+            </div>
 
             {/* User Profile Button with Modal Trigger */}
             <div className="relative">

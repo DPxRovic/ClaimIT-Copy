@@ -274,9 +274,12 @@ export const MyReports = ({
   const handleOpenVerification = (entry) => {
     if (!selectedReport) return;
 
+    const reportId = selectedReport.id || selectedReport.ticket || selectedReport.ticketNumber;
+
     setSelectedVerification({
       id: entry.id,
       claimId: entry.claimId || entry.id,
+      reportId,
       type: entry.type || (selectedReport.type === 'LOST' ? 'match' : 'claim'),
       itemTitle: selectedReport.title,
       reportTicket: selectedReport.ticket || selectedReport.ticketNumber,
@@ -610,6 +613,11 @@ export const MyReports = ({
       <ClaimMatchVerificationModal
         isOpen={Boolean(selectedVerification)}
         verification={selectedVerification}
+        currentUser={{
+          uid: currentUser?.uid,
+          name: currentUser?.displayName || 'You',
+          role: currentUser?.role || 'Reporter',
+        }}
         onClose={() => {
           setSelectedVerification(null);
           setSelectedReport(null);

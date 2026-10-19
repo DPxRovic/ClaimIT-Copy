@@ -214,9 +214,35 @@ service cloud.firestore {
 
         allow delete: if isAdmin();
 
-        // Messages subcollection: Denied until Prompt 8
+        // ---------------------------------------------------------------------
+        // Messages subcollection: reports/{reportId}/claims/{claimId}/messages/{messageId}
+        // ---------------------------------------------------------------------
+        // Read: Claimant, parent report owner, or administrator.
+        // Create: Authenticated active participant, valid text (1-1000 chars), senderUid == auth.uid.
+        // Update/Delete: Denied (messages are immutable audit records).
+        // ---------------------------------------------------------------------
         match /messages/{messageId} {
-          allow read, write: if false;
+          allow read: if isAuthenticated() && (
+            isOwner(get(/databases/$(database)/documents/reports/$(reportId)/claims/$(claimId)).data.claimantUid) ||
+            isOwner(get(/databases/$(database)/documents/reports/$(reportId)).data.reporterUid) ||
+            (get(/databases/$(database)/documents/reports/$(reportId)/claims/$(claimId)).data.reportCreatorUid != null &&
+              isOwner(get(/databases/$(database)/documents/reports/$(reportId)/claims/$(claimId)).data.reportCreatorUid)) ||
+            isAdmin()
+          );
+
+          allow create: if isAuthenticated() && isActiveUser() &&
+            request.resource.data.senderUid == request.auth.uid &&
+            (
+              isOwner(get(/databases/$(database)/documents/reports/$(reportId)/claims/$(claimId)).data.claimantUid) ||
+              isOwner(get(/databases/$(database)/documents/reports/$(reportId)).data.reporterUid) ||
+              (get(/databases/$(database)/documents/reports/$(reportId)/claims/$(claimId)).data.reportCreatorUid != null &&
+                isOwner(get(/databases/$(database)/documents/reports/$(reportId)/claims/$(claimId)).data.reportCreatorUid)) ||
+              isAdmin()
+            ) &&
+            isValidString(request.resource.data.text, 1, 1000) &&
+            request.resource.data.keys().hasOnly(['senderUid', 'senderName', 'senderRole', 'text', 'timestamp']);
+
+          allow update, delete: if false;
         }
       }
     }

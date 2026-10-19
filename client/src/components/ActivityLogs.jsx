@@ -1,76 +1,59 @@
-import React, { useState, useMemo } from 'react';
-
-const INITIAL_LOGS = [
-  {
-    id: 1,
-    timestamp: 'Sep 17, 2026 · 4:02 PM',
-    actorName: 'Sam Aquino',
-    actorRole: '(Admin)',
-    action: 'Suspended account: Juan Dela Cruz (policy violation)',
-  },
-  {
-    id: 2,
-    timestamp: 'Sep 16, 2026 · 10:15 AM',
-    actorName: 'System',
-    actorRole: '',
-    action: 'Report R-1042 status changed to Pending Claim',
-  },
-  {
-    id: 3,
-    timestamp: 'Sep 15, 2026 · 8:40 AM',
-    actorName: 'System',
-    actorRole: '',
-    action: 'New registration: Joshua Santiago (Student)',
-  },
-  {
-    id: 4,
-    timestamp: 'Sep 12, 2026 · 2:30 PM',
-    actorName: 'System',
-    actorRole: '',
-    action: 'Report R-1021 marked Resolved',
-  },
-  {
-    id: 5,
-    timestamp: 'Sep 10, 2026 · 11:05 AM',
-    actorName: 'System',
-    actorRole: '',
-    action: 'New registration: Prof. Mark Rhicky Raby (Faculty)',
-  },
-  {
-    id: 6,
-    timestamp: 'Sep 5, 2026 · 3:47 PM',
-    actorName: 'Sam Aquino',
-    actorRole: '(Admin)',
-    action: 'Removed listing: Old Charger Cable (R-1880, reported as duplicate)',
-  },
-];
+import React, { useState, useMemo, useEffect } from 'react';
+import { subscribeActivityLogs } from '../firebase/admin.js';
 
 export default function ActivityLogs() {
+  const [logs, setLogs] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [actorFilter, setActorFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const itemsPerPage = 6;
+  const itemsPerPage = 8;
+
+  // Real-time Firestore subscription to activity_logs
+  useEffect(() => {
+    setIsLoading(true);
+    setError(null);
+
+    const unsubscribe = subscribeActivityLogs({
+      limitCount: 100,
+      onUpdate: (records) => {
+        setLogs(records);
+        setIsLoading(false);
+      },
+      onError: (err) => {
+        console.warn('Failed to load activity logs:', err);
+        setError(err.message || 'Permission denied or failed to load activity logs from database.');
+        setIsLoading(false);
+      },
+    });
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, []);
 
   // Filter logs based on search query and actor type
   const filteredLogs = useMemo(() => {
-    return INITIAL_LOGS.filter((log) => {
+    return logs.filter((log) => {
       const query = searchQuery.toLowerCase().trim();
       const matchesSearch =
         !query ||
-        log.actorName.toLowerCase().includes(query) ||
-        log.actorRole.toLowerCase().includes(query) ||
-        log.action.toLowerCase().includes(query) ||
-        log.timestamp.toLowerCase().includes(query);
+        (log.actorName && log.actorName.toLowerCase().includes(query)) ||
+        (log.actorRole && log.actorRole.toLowerCase().includes(query)) ||
+        (log.action && log.action.toLowerCase().includes(query)) ||
+        (log.timestamp && log.timestamp.toLowerCase().includes(query));
 
       const matchesActor =
         actorFilter === 'all' ||
-        (actorFilter === 'admin' && log.actorRole.includes('Admin')) ||
-        (actorFilter === 'system' && log.actorName === 'System');
+        (actorFilter === 'admin' && (log.actorRole?.toLowerCase().includes('admin') || log.actorName?.toLowerCase().includes('admin'))) ||
+        (actorFilter === 'system' && (log.actorName === 'System' || !log.actorRole));
 
       return matchesSearch && matchesActor;
     });
-  }, [searchQuery, actorFilter]);
+  }, [logs, searchQuery, actorFilter]);
 
   const totalPages = Math.ceil(filteredLogs.length / itemsPerPage) || 1;
   const paginatedLogs = filteredLogs.slice(
@@ -97,6 +80,25 @@ export default function ActivityLogs() {
         </div>
         <div className="flex items-center gap-3 shrink-0"></div>
       </div>
+
+      {/* Error feedback banner */}
+      {error && (
+        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <svg className="w-5 h-5 shrink-0 text-rose-500" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            <span>{error}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            className="text-rose-500 hover:text-rose-700 text-xs font-bold cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Main Content Section */}
       <div className="flex flex-col gap-5">
@@ -214,10 +216,21 @@ export default function ActivityLogs() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E8E4D8] text-sm text-[#23261F]">
-                {paginatedLogs.length === 0 ? (
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={3} className="py-12 text-center text-[#6E6858]">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <div className="w-6 h-6 border-2 border-[#5170ff] border-t-transparent rounded-full animate-spin" />
+                        <span className="text-xs font-medium">Loading audit log records from database...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : paginatedLogs.length === 0 ? (
                   <tr>
                     <td colSpan={3} className="py-10 text-center text-[#6E6858]">
-                      No activity logs found matching your filter criteria.
+                      {searchQuery || actorFilter !== 'all'
+                        ? 'No activity logs found matching your filter criteria.'
+                        : 'No activity logs recorded yet. Real events will populate here automatically as actions occur.'}
                     </td>
                   </tr>
                 ) : (
@@ -246,12 +259,12 @@ export default function ActivityLogs() {
           {/* Table Pagination Footer */}
           <div className="p-3.5 px-6 bg-[#eff4ff]/50 border-t border-[#E8E4D8] flex items-center justify-between text-xs text-[#6E6858]">
             <div className="font-medium">
-              Showing {paginatedLogs.length} of {filteredLogs.length === INITIAL_LOGS.length ? '142' : filteredLogs.length} events
+              Showing {paginatedLogs.length} of {filteredLogs.length} events
             </div>
             <div className="flex items-center gap-1.5">
               <button
                 className="px-2.5 py-1 rounded border border-[#CBD5E1] bg-white text-[#444655] hover:bg-[#eff4ff] transition-colors disabled:opacity-50 font-medium cursor-pointer disabled:cursor-not-allowed"
-                disabled={currentPage === 1}
+                disabled={currentPage === 1 || isLoading}
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 type="button"
               >
@@ -260,7 +273,7 @@ export default function ActivityLogs() {
               <span className="px-2 font-semibold text-[#23261F]">{currentPage}</span>
               <button
                 className="px-2.5 py-1 rounded border border-[#CBD5E1] bg-white text-[#444655] hover:bg-[#eff4ff] transition-colors font-medium cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={currentPage >= totalPages}
+                disabled={currentPage >= totalPages || isLoading}
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                 type="button"
               >

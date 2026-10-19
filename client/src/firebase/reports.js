@@ -5,6 +5,7 @@ import {
   getDocs,
   setDoc,
   updateDoc,
+  deleteDoc,
   query,
   where,
   orderBy,
@@ -833,3 +834,95 @@ export async function fetchRecentlyResolved(count = 4) {
 export function getMockReports() {
   return [...MOCK_REPORTS_STORE];
 }
+
+/**
+ * Subscribes to real-time reports stream across the system (for admin reports table).
+ */
+export function subscribeReports(
+  { type = 'ALL', status = 'ALL', limitCount = 100 } = {},
+  onUpdate,
+  onError
+) {
+  if (isMockSession()) {
+    let list = [...MOCK_REPORTS_STORE];
+    if (type !== 'ALL') {
+      list = list.filter((r) => r.type === type);
+    }
+    if (status !== 'ALL') {
+      list = list.filter((r) => r.status === status);
+    }
+    onUpdate(list.map((r) => formatReportRecord(r)));
+    return () => {};
+  }
+
+  try {
+    const reportsCol = collection(db, 'reports');
+    const constraints = [];
+
+    if (type && type !== 'ALL') {
+      constraints.push(where('type', '==', type));
+    }
+    if (status && status !== 'ALL') {
+      constraints.push(where('status', '==', status));
+    }
+
+    constraints.push(orderBy('createdAt', 'desc'));
+    constraints.push(limit(limitCount));
+
+    const q = query(reportsCol, ...constraints);
+
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const items = snapshot.docs.map((docSnap) => formatReportRecord(docSnap));
+        onUpdate(items);
+      },
+      (err) => {
+        console.warn('[Firestore] subscribeReports listener error, falling back:', err);
+        let list = [...MOCK_REPORTS_STORE];
+        if (type !== 'ALL') list = list.filter((r) => r.type === type);
+        if (status !== 'ALL') list = list.filter((r) => r.status === status);
+        onUpdate(list.map((r) => formatReportRecord(r)));
+        if (onError) onError(err);
+      }
+    );
+  } catch (err) {
+    console.warn('[Firestore] subscribeReports query error:', err);
+    let list = [...MOCK_REPORTS_STORE];
+    onUpdate(list.map((r) => formatReportRecord(r)));
+    if (onError) onError(err);
+    return () => {};
+  }
+}
+
+/**
+ * Permanently deletes a report listing (restricted to administrators).
+ */
+export async function deleteReportService(reportId) {
+  if (!reportId) throw new Error('Report ID is required.');
+
+  if (!isMockSession()) {
+    try {
+      const deleteCallable = httpsCallable(functions, 'deleteReport');
+      const result = await deleteCallable({ reportId });
+      return result.data;
+    } catch (_fnErr) {
+      try {
+        const reportRef = doc(db, 'reports', reportId);
+        await deleteDoc(reportRef);
+        return { success: true, reportId };
+      } catch (err) {
+        console.warn('[Firestore] deleteReportService fallback error:', err);
+        throw err;
+      }
+    }
+  }
+
+  const idx = MOCK_REPORTS_STORE.findIndex((r) => r.id === reportId || r.ticketNumber === reportId);
+  if (idx !== -1) {
+    MOCK_REPORTS_STORE.splice(idx, 1);
+  }
+
+  return { success: true, reportId };
+}
+

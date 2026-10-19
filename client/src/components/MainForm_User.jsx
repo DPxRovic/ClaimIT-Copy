@@ -11,6 +11,13 @@ import ReportItemModal from './ReportItemModal.jsx';
 import ReportSubmittedConfirmation from './ReportSubmittedConfirmation.jsx';
 import { UserProfileModal } from './UserProfileModal.jsx';
 import LogoutConfirmation from './LogoutConfirmation.jsx';
+import { Notifications } from './Notifications.jsx';
+import {
+  subscribeUserNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  DEFAULT_NOTIFICATIONS,
+} from '../firebase/notifications.js';
 
 import HomePage from './Home.jsx';
 
@@ -19,6 +26,7 @@ const BrowseItems = lazy(() => import('./BrowseItems.jsx'));
 const MyReports = lazy(() => import('./MyReports.jsx'));
 const MyClaims = lazy(() => import('./MyClaims.jsx'));
 const ProfileSettings = lazy(() => import('./ProfileSettings.jsx'));
+
 
 /**
  * MainForm_User layout component for ClaimIt.
@@ -59,6 +67,9 @@ export default function MainForm_User({
   const [submittedReport, setSubmittedReport] = useState(null);
   const [createdReports, setCreatedReports] = useState([]);
 
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [notificationsList, setNotificationsList] = useState(DEFAULT_NOTIFICATIONS);
+
   const profileRef = useRef(null);
   const notificationRef = useRef(null);
 
@@ -69,7 +80,26 @@ export default function MainForm_User({
     { id: 'my-claims', label: 'My Claims' },
   ];
 
-  // Close profile dropdown when clicking outside.
+  // Subscribe to real-time user notifications
+  useEffect(() => {
+    const unsubscribe = subscribeUserNotifications(
+      user?.uid || 'current',
+      (notifs) => {
+        if (notifs) {
+          setNotificationsList(notifs);
+        }
+      },
+      (err) => {
+        console.warn('Notifications subscription warning:', err);
+      }
+    );
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [user?.uid]);
+
+  // Close profile dropdown and notifications when clicking outside.
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
@@ -78,16 +108,23 @@ export default function MainForm_User({
       ) {
         setIsProfileModalOpen(false);
       }
+      if (
+        notificationRef.current &&
+        !notificationRef.current.contains(event.target)
+      ) {
+        setIsNotificationsOpen(false);
+      }
     };
 
-    if (isProfileModalOpen) {
+    if (isProfileModalOpen || isNotificationsOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isProfileModalOpen]);
+  }, [isProfileModalOpen, isNotificationsOpen]);
+
 
   // Handle navbar navigation.
   const handleTabClick = (event, path) => {
@@ -385,28 +422,54 @@ export default function MainForm_User({
               <span>Report Item</span>
             </button>
 
-            {/* Notifications Button */}
-            <button
-              aria-label="Notifications"
-              className="relative flex cursor-pointer items-center justify-center rounded-lg p-2 text-[#444655] transition-colors hover:bg-[#e5eeff] hover:text-[#0b1c30]"
-              type="button"
-            >
-              <svg
-                className="h-5 w-5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                viewBox="0 0 24 24"
+            {/* Notifications Button & Dropdown */}
+            <div className="relative" ref={notificationRef}>
+              <button
+                aria-label="Notifications"
+                onClick={() => setIsNotificationsOpen((prev) => !prev)}
+                className="relative flex cursor-pointer items-center justify-center rounded-lg p-2 text-[#444655] transition-colors hover:bg-[#e5eeff] hover:text-[#0b1c30]"
+                type="button"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"
-                />
-              </svg>
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"
+                  />
+                </svg>
 
-              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#ba1a1a] ring-2 ring-white" />
-            </button>
+                {notificationsList.filter((n) => n.unread).length > 0 && (
+                  <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#ba1a1a] ring-2 ring-white" />
+                )}
+              </button>
+
+              {isNotificationsOpen && (
+                <Notifications
+                  notifications={notificationsList}
+                  onClose={() => setIsNotificationsOpen(false)}
+                  onMarkAllAsRead={async () => {
+                    await markAllNotificationsAsRead(notificationsList);
+                    setNotificationsList((prev) => prev.map((n) => ({ ...n, unread: false })));
+                  }}
+                  onMarkAsRead={async (id) => {
+                    await markNotificationAsRead(id);
+                    setNotificationsList((prev) =>
+                      prev.map((n) => (n.id === id ? { ...n, unread: false } : n))
+                    );
+                  }}
+                  onSelectClaim={(claimId) => {
+                    setIsNotificationsOpen(false);
+                    setCurrentTab('my-claims');
+                  }}
+                />
+              )}
+            </div>
 
             {/* User Profile */}
             <div

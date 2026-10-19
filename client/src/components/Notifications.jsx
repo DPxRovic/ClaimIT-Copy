@@ -4,12 +4,11 @@ import {
   CheckCheck,
   Check,
   X,
-  ExternalLink,
   MessageSquare,
-  ShieldAlert,
   Search,
   ChevronRight,
 } from 'lucide-react';
+
 
 /**
  * Helper to render status badges matching the claims table status color scheme:
